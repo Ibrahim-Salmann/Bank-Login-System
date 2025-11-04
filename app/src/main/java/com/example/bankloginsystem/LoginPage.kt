@@ -1,5 +1,6 @@
 package com.example.bankloginsystem
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,9 +27,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
+import kotlin.jvm.java
 
 class LoginPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -101,6 +104,7 @@ fun ButtonClicked(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 @Preview(showBackground = true)
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     Scaffold {
         Column(
             modifier = modifier.padding(it),
@@ -117,7 +121,11 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ButtonClicked("Sign Up", { TODO(/* navigate to signup */) }, modifier = Modifier.weight(1f))
+                ButtonClicked("Sign Up", {
+//                    val context = LocalContext.current // error: context is not available here. Fixed by Placing it in the main body of this function. Thus calling it from a @Composable context, which is valid context variable is then "captured" by the onClick lambda, allowing you to use it to create an Intent and start the SignUpPage activity without any errors.
+                    val intent = Intent(context, SignUpPage::class.java) // error: context is not available here. Fixed by creating: class SignUpPage : ComponentActivity(){} in the SighUpPage.kt file
+                    context.startActivity(intent)
+                }, modifier = Modifier.weight(1f))
                 ButtonClicked("Login", { TODO(/* navigate to login */) }, modifier = Modifier.weight(1f))
                 ButtonClicked("Exit", {TODO(/* exit app or break */)}, modifier = Modifier.weight(1f))
 
