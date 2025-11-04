@@ -86,7 +86,16 @@ fun PasswordInput(modifier: Modifier = Modifier){
     }
 }
 
-
+// Creating a button composable that will be used across all pages.
+@Composable
+fun ButtonClicked(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(
+        onClick = onClick,
+        modifier = modifier
+    ) {
+        Text(text = text)
+    }
+}
 
 
 @Preview(showBackground = true)
@@ -105,18 +114,13 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             PasswordInput(modifier = Modifier.padding(16.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(onClick = { /*TODO*/ }) {
-                    Text(text = "Sign-up")
-                }
-                Button(onClick = { /*TODO*/ }) {
-                    Text(text = "Exit")
-                }
-                Button(onClick = { /*TODO*/ }) {
-                    Text(text = "Login")
-                }
+                ButtonClicked("Sign Up", { TODO(/* navigate to signup */) }, modifier = Modifier.weight(1f))
+                ButtonClicked("Login", { TODO(/* navigate to login */) }, modifier = Modifier.weight(1f))
+                ButtonClicked("Exit", {TODO(/* exit app or break */)}, modifier = Modifier.weight(1f))
+
             }
         }
     }
