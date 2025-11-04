@@ -8,10 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -65,6 +67,28 @@ fun EmailInput(modifier: Modifier = Modifier) {
     }
 }
 
+
+@Composable
+fun PasswordInput(modifier: Modifier = Modifier){
+    var input by remember { mutableStateOf("") }
+    Box(modifier = Modifier
+        .clip(RoundedCornerShape(12.dp))
+        .background(Color(0xFFFFC107))
+        .padding(horizontal = 24.dp, vertical = 16.dp),
+    contentAlignment = Alignment.Center
+    ) {
+        OutlinedTextField(
+            value = input,
+            onValueChange = { input = it },
+            label = { Text("Password") },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+
+
+
 @Preview(showBackground = true)
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier) {
@@ -77,7 +101,23 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             Text(text = "Login Screen")
             // Add the EmailInput composable to the HomeScreen
             EmailInput(modifier = Modifier.padding(16.dp))
+            // Add the PasswordInput composable to the HomeScreen
+            PasswordInput(modifier = Modifier.padding(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(onClick = { /*TODO*/ }) {
+                    Text(text = "Sign-up")
+                }
+                Button(onClick = { /*TODO*/ }) {
+                    Text(text = "Exit")
+                }
+                Button(onClick = { /*TODO*/ }) {
+                    Text(text = "Login")
+                }
+            }
         }
     }
 }
-
