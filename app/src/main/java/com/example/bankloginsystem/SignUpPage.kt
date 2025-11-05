@@ -1,5 +1,6 @@
 package com.example.bankloginsystem
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -32,6 +33,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.database.sqlite.SQLiteDatabase // using SQLite to store user data
+import android.database.sqlite.SQLiteOpenHelper
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 
 // The activity responsible for hosting the user sign-up screen.
@@ -174,7 +177,61 @@ fun GenderSelection(selectedOption: String, onOptionSelected: (String) -> Unit, 
     }
 }
 
-/**
+
+// Creating the database for the entries for each new user
+abstract class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+
+    // Defining the database structure
+    companion object {
+        private const val DATABASE_NAME = "BankUsers.db"
+        private const val DATABASE_VERSION = 1
+        const val TABLE_USERS = "users"
+        const val COLUMN_ID = "id"
+        const val COLUMN_FIRST_NAME = "first_name"
+        const val COLUMN_LAST_NAME = "last_name"
+        const val COLUMN_GENDER = "gender"
+        const val COLUMN_EMAIL = "email"
+        const val COLUMN_PHONE_NUMBER = "phone_number"
+        const val COLUMN_BALANCE = "balance"
+    }
+
+    // Creating the table
+    override fun onCreate(db: SQLiteDatabase?) {
+        val createTable = """
+            CREATE TABLE $TABLE_USERS (
+            $COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            $COLUMN_FIRST_NAME TEXT,
+            $COLUMN_LAST_NAME TEXT,
+            $COLUMN_GENDER TEXT,
+            $COLUMN_EMAIL TEXT,
+            $COLUMN_PHONE_NUMBER TEXT,
+            $COLUMN_BALANCE REAL
+            );
+        """.trimIndent()
+        db?.execSQL(createTable)
+    }
+
+    // Handle database upgrades if needed; Suggested by online resource
+    override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+        db?.execSQL("DROP TABLE IF EXISTS $TABLE_USERS")
+        onCreate(db)
+    }
+
+    fun insertUser(firstName: String, lastName: String, gender: String, email: String, phoneNumber: String, balance: Double) : Boolean {
+
+        return TODO("Provide the return value")
+    }
+
+
+
+}
+
+
+
+
+
+
+    /**
  * A preview function to render the `SignUpScreen` in Android Studio's design view.
  * It's wrapped in the app's theme to ensure consistent styling.
  */
