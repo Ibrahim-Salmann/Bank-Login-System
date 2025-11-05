@@ -1,5 +1,6 @@
 package com.example.bankloginsystem
 
+import android.R
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -72,7 +73,16 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
     val confirmPassword = remember { mutableStateOf("") }
     val phoneNumber = remember { mutableStateOf("") }
     // A fixed initial amount for every new user account.
-    val initialAmount = 500
+    val initialBalance = 500
+
+    // Error states for each field to display inline error messages.
+    val firstNameError = remember { mutableStateOf("") }
+    val lastNameError = remember { mutableStateOf("") }
+    val emailError = remember { mutableStateOf("") }
+    val passwordError = remember { mutableStateOf("") }
+    val confirmError = remember { mutableStateOf("") }
+    val phoneError = remember { mutableStateOf("") }
+    val genderError = remember { mutableStateOf("") }
 
     // LocalContext is used for creating Intents to navigate between activities.
     val context = LocalContext.current
@@ -81,7 +91,7 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState()) // Great choice! This makes the UI adapt to smaller screens.
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -89,83 +99,133 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        OutlinedTextField(value = firstName.value, onValueChange = { firstName.value = it }, label = { Text(text = "First Name") })
+        // --- First Name ---
+        OutlinedTextField(value = firstName.value, onValueChange = { firstName.value = it; firstNameError.value = "" }, label = { Text(text = "First Name") }, isError = firstNameError.value.isNotEmpty())
+        if (firstNameError.value.isNotEmpty()) Text(firstNameError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(value = lastName.value, onValueChange = { lastName.value = it }, label = { Text(text = "Last Name") })
+        // --- Last Name ---
+        OutlinedTextField(value = lastName.value, onValueChange = { lastName.value = it; lastNameError.value = "" }, label = { Text(text = "Last Name") }, isError = lastNameError.value.isNotEmpty())
+        if (lastNameError.value.isNotEmpty()) Text(lastNameError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        GenderSelection(selectedOption = gender.value, onOptionSelected = { gender.value = it })
+        // --- Gender Selection ---
+        GenderSelection(selectedOption = gender.value, onOptionSelected = { gender.value = it; genderError.value = "" })
+        if (genderError.value.isNotEmpty()) Text(genderError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(value = email.value, onValueChange = { email.value = it }, label = { Text(text = "Email") })
+        // --- Email ---
+        OutlinedTextField(value = email.value, onValueChange = { email.value = it; emailError.value = "" }, label = { Text(text = "Email") }, isError = emailError.value.isNotEmpty())
+        if (emailError.value.isNotEmpty()) Text(emailError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(value = password.value, onValueChange = { password.value = it }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation())
+        // --- Password ---
+        OutlinedTextField(value = password.value, onValueChange = { password.value = it; passwordError.value = "" }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), isError = passwordError.value.isNotEmpty())
+        if (passwordError.value.isNotEmpty()) Text(passwordError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(value = confirmPassword.value, onValueChange = { confirmPassword.value = it }, label = { Text("Confirm Password") }, visualTransformation = PasswordVisualTransformation())
+        // --- Confirm Password ---
+        OutlinedTextField(value = confirmPassword.value, onValueChange = { confirmPassword.value = it; confirmError.value = "" }, label = { Text("Confirm Password") }, visualTransformation = PasswordVisualTransformation(), isError = confirmError.value.isNotEmpty())
+        if (confirmError.value.isNotEmpty()) Text(confirmError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        OutlinedTextField(value = phoneNumber.value, onValueChange = { phoneNumber.value = it }, label = { Text("Phone Number") })
+        // --- Phone Number ---
+        OutlinedTextField(value = phoneNumber.value, onValueChange = { phoneNumber.value = it; phoneError.value = "" }, label = { Text("Phone Number") }, isError = phoneError.value.isNotEmpty())
+        if (phoneError.value.isNotEmpty()) Text(phoneError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-
+        // The Button for submitting the form
         Button(onClick = {
-            // Add validation + save to SQLite
-            // simple synchronous DB call (fine for a learning app with small data)
-            val dbHelper = DatabaseHelper(context)
+            // This flag tracks if any validation check has failed.
+            var validationFailed = false
 
             val fName = firstName.value.trim()
             val lName = lastName.value.trim()
             val gChoice = gender.value.trim()
             val mail = email.value.trim()
-            val pass = password.value // note: not saving password in this schema; // TODO MUST needed
+            val pass = password.value
             val conf = confirmPassword.value
             val phone = phoneNumber.value.trim()
-            val initialBalance = 500
 
-            // Validation: Checking if text fields are empty
-            if (fName.isEmpty() || lName.isEmpty() || gChoice.isEmpty() || mail.isEmpty() || pass.isEmpty() || conf.isEmpty() || phone.isEmpty()) {
-                // The pop-up message
-                Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
-                // Handle empty fields
-                return@Button
+            // --- Start Validation: Replaced Toasts with inline error states ---
+            // Each validation now sets a specific error message on failure,
+            // which is displayed below the corresponding input field.
+            if (fName.isEmpty()) {
+                firstNameError.value = "First name is required"
+                validationFailed = true
             }
 
-            // Validation: Checking if an email is already taken or registered
+            if (lName.isEmpty()) {
+                lastNameError.value = "Last name is required"
+                validationFailed = true
+            }
+
+            if (gChoice.isEmpty()) {
+                genderError.value = "Please select a gender"
+                validationFailed = true
+            }
+
+            if (mail.isEmpty()) {
+                emailError.value = "Email is required"
+                validationFailed = true
+            } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(mail).matches()) {
+                emailError.value = "Please enter a valid email address"
+                validationFailed = true
+            }
+
+            if (pass.isEmpty()) {
+                passwordError.value = "Password is required"
+                validationFailed = true
+            } else if (pass.length <= 9) {
+                passwordError.value = "Password must be at least 8 characters long"
+                validationFailed = true
+            }
+
+            if (conf.isEmpty()) {
+                confirmError.value = "Please confirm your password"
+                validationFailed = true
+            } else if (pass != conf) {
+                confirmError.value = "Passwords do not match"
+                validationFailed = true
+            }
+
+            if (phone.isEmpty()) {
+                phoneError.value = "Phone number is required"
+                validationFailed = true
+            } else if (phone.length <= 10 || phone.length >= 14) {
+                phoneError.value = "Please enter a valid 10-digit phone number"
+                validationFailed = true
+            }
+
+            // If any validation failed, stop the submission process.
+            if (validationFailed) return@Button
+            // --- End Validation ---
+
+            val dbHelper = DatabaseHelper(context)
+            // Check for existing user after passing all other validations.
             if (dbHelper.userExists(mail)) {
-                Toast.makeText(context, "Email already registered", Toast.LENGTH_LONG).show()
+                emailError.value = "Email already registered"
                 return@Button
             }
 
-
-
-            // TODO() More validations
-
-
-
-            // User is inserted
+            // If all checks pass, proceed with user insertion.
             val okay = dbHelper.insertUser(fName, lName, gChoice, mail, phone, initialBalance.toDouble())
             if (okay){
                 Toast.makeText(context, "User added successfully", Toast.LENGTH_LONG).show()
-                // Navigate to the login page
                 val intent = Intent(context, LoginPage::class.java)
                 context.startActivity(intent)
             } else {
                 Toast.makeText(context, "Error adding user", Toast.LENGTH_LONG).show()
             }
 
-
-
-        }) {
+        }) { // end of onClick
             Text("Submit")
         }
 
@@ -309,12 +369,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         val db = this.readableDatabase
         return db.rawQuery("SELECT * FROM $TABLE_USERS WHERE $COLUMN_EMAIL = ?", arrayOf(email))
         // Caller must close cursor
-        // Suggested by online resource
     }
 
 
 }
-
 
 
     /**
