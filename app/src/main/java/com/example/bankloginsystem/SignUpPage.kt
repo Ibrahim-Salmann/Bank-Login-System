@@ -1,7 +1,9 @@
 package com.example.bankloginsystem
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.database.Cursor
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.database.sqlite.SQLiteDatabase // using SQLite to store user data
 import android.database.sqlite.SQLiteOpenHelper
+import android.widget.Toast
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 
 // The activity responsible for hosting the user sign-up screen.
@@ -116,7 +119,52 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
 
 
         Button(onClick = {
-            // TODO: Add validation + save to SQLite
+            // Add validation + save to SQLite
+            // simple synchronous DB call (fine for a learning app with small data)
+            val dbHelper = DatabaseHelper(context)
+
+            val fName = firstName.value.trim()
+            val lName = lastName.value.trim()
+            val gChoice = gender.value.trim()
+            val mail = email.value.trim()
+            val pass = password.value // note: not saving password in this schema; // TODO MUST needed
+            val conf = confirmPassword.value
+            val phone = phoneNumber.value.trim()
+            val initialBalance = 500
+
+            // Validation: Checking if text fields are empty
+            if (fName.isEmpty() || lName.isEmpty() || gChoice.isEmpty() || mail.isEmpty() || pass.isEmpty() || conf.isEmpty() || phone.isEmpty()) {
+                // The pop-up message
+                Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
+                // Handle empty fields
+                return@Button
+            }
+
+            // Validation: Checking if an email is already taken or registered
+            if (dbHelper.userExists(mail)) {
+                Toast.makeText(context, "Email already registered", Toast.LENGTH_LONG).show()
+                return@Button
+            }
+
+
+
+            // TODO() More validations
+
+
+
+            // User is inserted
+            val okay = dbHelper.insertUser(fName, lName, gChoice, mail, phone, initialBalance.toDouble())
+            if (okay){
+                Toast.makeText(context, "User added successfully", Toast.LENGTH_LONG).show()
+                // Navigate to the login page
+                val intent = Intent(context, LoginPage::class.java)
+                context.startActivity(intent)
+            } else {
+                Toast.makeText(context, "Error adding user", Toast.LENGTH_LONG).show()
+            }
+
+
+
         }) {
             Text("Submit")
         }
@@ -179,7 +227,8 @@ fun GenderSelection(selectedOption: String, onOptionSelected: (String) -> Unit, 
 
 
 // Creating the database for the entries for each new user
-abstract class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
+// Makes DatabaseHelper a concrete class that you can create instances of.
+class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     // Defining the database structure
     companion object {
@@ -217,17 +266,54 @@ abstract class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATA
         onCreate(db)
     }
 
+    // Inserting the added users; Returns true if successful, false otherwise in case of validations.
     fun insertUser(firstName: String, lastName: String, gender: String, email: String, phoneNumber: String, balance: Double) : Boolean {
-
-        return TODO("Provide the return value")
+        val db = this.writableDatabase
+        return try {
+            val values = ContentValues().apply {
+                put(COLUMN_FIRST_NAME, firstName)
+                put(COLUMN_LAST_NAME, lastName)
+                put(COLUMN_GENDER, gender)
+                put(COLUMN_EMAIL, email)
+                put(COLUMN_PHONE_NUMBER, phoneNumber)
+                put(COLUMN_BALANCE, balance)
+            }
+            val id = db.insert(TABLE_USERS, null, values)
+            id != -1L
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        } finally {
+            db.close()
+        }
     }
 
 
+    // Checking if user exists in the database
+    fun userExists(email: String) : Boolean {
+        val db = this.readableDatabase
+        var cursor: Cursor? = null
+        return try {
+            cursor = db.rawQuery("SELECT $COLUMN_ID FROM $TABLE_USERS WHERE $COLUMN_EMAIL = ?", arrayOf(email))
+            val exists = cursor.count > 0
+            exists
+        } finally {
+            cursor?.close()
+            db.close()
+        }
+    }
+
+
+    // Get user details by email (example utility for login later)
+    fun getUserByEmail(email: String): Cursor? {
+        val db = this.readableDatabase
+        return db.rawQuery("SELECT * FROM $TABLE_USERS WHERE $COLUMN_EMAIL = ?", arrayOf(email))
+        // Caller must close cursor
+        // Suggested by online resource
+    }
+
 
 }
-
-
-
 
 
 
