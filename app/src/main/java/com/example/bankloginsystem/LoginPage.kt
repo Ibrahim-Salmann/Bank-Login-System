@@ -226,6 +226,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                         if (cursor.moveToFirst()){
                             val firstName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_FIRST_NAME))
                             val lastName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_LAST_NAME))
+                            val balance = cursor.getDouble(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_BALANCE))
                             cursor.close()
                             dbHelper.close()
 
@@ -234,6 +235,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                             val intent = Intent(context, WelcomePage::class.java).apply {
                                 putExtra("first_name", firstName)
                                 putExtra("last_name", lastName)
+                                putExtra("balance", balance)
                                 // Add flags to prevent back navigation
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                             }
