@@ -1,6 +1,5 @@
 package com.example.bankloginsystem
 
-import android.R
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -39,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import android.database.sqlite.SQLiteDatabase // using SQLite to store user data
 import android.database.sqlite.SQLiteOpenHelper
 import android.widget.Toast
+import java.security.MessageDigest // For 'HASHing values of password
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 
 // The activity responsible for hosting the user sign-up screen.
@@ -184,7 +184,7 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
                 passwordError.value = "Password is required"
                 validationFailed = true
             } else if (pass.length <= 9) {
-                passwordError.value = "Password must be at least 8 characters long"
+                passwordError.value = "Password must be at least 9 characters long"
                 validationFailed = true
             }
 
@@ -199,8 +199,8 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
             if (phone.isEmpty()) {
                 phoneError.value = "Phone number is required"
                 validationFailed = true
-            } else if (phone.length <= 10 || phone.length >= 14) {
-                phoneError.value = "Please enter a valid 10-digit phone number"
+            } else if (phone.length !in 11..<14) {
+                phoneError.value = "Please enter a valid phone number (10–13 digits)"
                 validationFailed = true
             }
 
@@ -216,7 +216,7 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
             }
 
             // If all checks pass, proceed with user insertion.
-            val okay = dbHelper.insertUser(fName, lName, gChoice, mail, phone, initialBalance.toDouble())
+            val okay = dbHelper.insertUser(fName, lName, gChoice, mail, hashPassword(pass), phone, initialBalance.toDouble())
             if (okay){
                 Toast.makeText(context, "User added successfully", Toast.LENGTH_LONG).show()
                 val intent = Intent(context, LoginPage::class.java)
@@ -253,7 +253,7 @@ fun GenderSelection(selectedOption: String, onOptionSelected: (String) -> Unit, 
     val options = listOf("Male", "Female", "Rather Not Say")
 
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = "Gender", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(bottom = 8.dp), fontSize = 24.sp)
+        Text(text = "Gender", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp), fontSize = 20.sp)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceAround,
@@ -300,6 +300,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         const val COLUMN_LAST_NAME = "last_name"
         const val COLUMN_GENDER = "gender"
         const val COLUMN_EMAIL = "email"
+        const val COLUMN_PASSWORD = "password" // Newly added; Will be stored as a HASH
         const val COLUMN_PHONE_NUMBER = "phone_number"
         const val COLUMN_BALANCE = "balance"
     }
@@ -313,6 +314,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             $COLUMN_LAST_NAME TEXT,
             $COLUMN_GENDER TEXT,
             $COLUMN_EMAIL TEXT,
+            $COLUMN_PASSWORD TEXT, 
             $COLUMN_PHONE_NUMBER TEXT,
             $COLUMN_BALANCE REAL
             );
@@ -327,7 +329,15 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     // Inserting the added users; Returns true if successful, false otherwise in case of validations.
-    fun insertUser(firstName: String, lastName: String, gender: String, email: String, phoneNumber: String, balance: Double) : Boolean {
+    fun insertUser(
+        firstName: String,
+        lastName: String,
+        gender: String,
+        email: String,
+        password: String,
+        phoneNumber: String,
+        balance: Double
+    ) : Boolean {
         val db = this.writableDatabase
         return try {
             val values = ContentValues().apply {
@@ -335,6 +345,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 put(COLUMN_LAST_NAME, lastName)
                 put(COLUMN_GENDER, gender)
                 put(COLUMN_EMAIL, email)
+                put(COLUMN_PASSWORD, password)
                 put(COLUMN_PHONE_NUMBER, phoneNumber)
                 put(COLUMN_BALANCE, balance)
             }
@@ -350,6 +361,12 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
 
     // Checking if user exists in the database
+    /**
+     * Checks if a user with the given email already exists in the database.
+     *
+     * @param email The email to check.
+     * @return True if the user exists, false otherwise.
+     */
     fun userExists(email: String) : Boolean {
         val db = this.readableDatabase
         var cursor: Cursor? = null
@@ -359,19 +376,32 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             exists
         } finally {
             cursor?.close()
-            db.close()
+            db.close() // Better to close later
         }
     }
 
 
     // Get user details by email (example utility for login later)
-    fun getUserByEmail(email: String): Cursor? {
-        val db = this.readableDatabase
-        return db.rawQuery("SELECT * FROM $TABLE_USERS WHERE $COLUMN_EMAIL = ?", arrayOf(email))
-        // Caller must close cursor
-    }
+//    fun getUserByEmail(email: String): Cursor? {
+//        val db = this.readableDatabase
+//        return db.rawQuery("SELECT * FROM $TABLE_USERS WHERE $COLUMN_EMAIL = ?", arrayOf(email))
+//        // Caller must close cursor
+//    }
 
 
+}
+
+// The password the user will create will be added to the database but will be stored as a HASH (SHA-256); Usually used in security management
+/**
+ * Hashes a password using the SHA-256 algorithm.
+ * This is a one-way hashing function, so the original password cannot be recovered.
+ *
+ * @param password The password to hash.
+ * @return The hashed password as a hex string.
+ */
+fun hashPassword(password: String): String {
+    val bytes = MessageDigest.getInstance("SHA-256").digest(password.toByteArray())
+    return bytes.joinToString("") { "%02x".format(it) }
 }
 
 
