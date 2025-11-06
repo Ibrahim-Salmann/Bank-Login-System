@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import android.database.sqlite.SQLiteDatabase // using SQLite to store user data
 import android.database.sqlite.SQLiteOpenHelper
 import android.widget.Toast
+import androidx.compose.ui.text.input.VisualTransformation
 import java.security.MessageDigest // For 'HASHing values of password
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 
@@ -87,6 +88,10 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
     // LocalContext is used for creating Intents to navigate between activities.
     val context = LocalContext.current
 
+    val passwordVisible = remember { mutableStateOf(false) }
+    val confirmPasswordVisible = remember { mutableStateOf(false) }
+
+
     // The main layout is a scrollable Column to accommodate all input fields on any screen size.
     Column(
         modifier = modifier
@@ -123,15 +128,36 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- Password ---
-        OutlinedTextField(value = password.value, onValueChange = { password.value = it; passwordError.value = "" }, label = { Text("Password") }, visualTransformation = PasswordVisualTransformation(), isError = passwordError.value.isNotEmpty())
-        if (passwordError.value.isNotEmpty()) Text(passwordError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        // Password field with "Show/Hide"
+        OutlinedTextField(
+            value = password.value,
+            onValueChange = { password.value = it },
+            label = { Text("Password") },
+            visualTransformation = if (passwordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                TextButton(onClick = { passwordVisible.value = !passwordVisible.value }) {
+                    Text(if (passwordVisible.value) "Hide" else "Show")
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // --- Confirm Password ---
-        OutlinedTextField(value = confirmPassword.value, onValueChange = { confirmPassword.value = it; confirmError.value = "" }, label = { Text("Confirm Password") }, visualTransformation = PasswordVisualTransformation(), isError = confirmError.value.isNotEmpty())
-        if (confirmError.value.isNotEmpty()) Text(confirmError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        // Confirm Password field with "Show/Hide"
+        OutlinedTextField(
+            value = confirmPassword.value,
+            onValueChange = { confirmPassword.value = it },
+            label = { Text("Confirm Password") },
+            visualTransformation = if (confirmPasswordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                TextButton(onClick = { confirmPasswordVisible.value = !confirmPasswordVisible.value }) {
+                    Text(if (confirmPasswordVisible.value) "Hide" else "Show")
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -381,11 +407,21 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
 
-    // Get user details by email (example utility for login later)
-//    fun getUserByEmail(email: String): Cursor? {
-//        val db = this.readableDatabase
-//        return db.rawQuery("SELECT * FROM $TABLE_USERS WHERE $COLUMN_EMAIL = ?", arrayOf(email))
-//        // Caller must close cursor
+//     Get user details by email (example utility for login later)
+    fun getUserByEmail(email: String): Cursor {
+        val db = this.readableDatabase
+        return db.rawQuery("SELECT * FROM $TABLE_USERS WHERE $COLUMN_EMAIL = ?", arrayOf(email))
+        // Caller must close cursor
+    }
+
+
+    // Singleton accessor
+//    private var instance: DatabaseHelper? = null
+//    fun getInstance(context: Context): DatabaseHelper {
+//        if (instance == null) {
+//            instance = DatabaseHelper(context.applicationContext)
+//        }
+//        return instance!!
 //    }
 
 

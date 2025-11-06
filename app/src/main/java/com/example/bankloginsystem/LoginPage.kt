@@ -1,7 +1,11 @@
 package com.example.bankloginsystem
 
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.database.Cursor
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -27,10 +33,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
+//import androidx.compose.material.icons.Icons
+//import androidx.compose.material.icons.filled.Visibility
+//import androidx.compose.material.icons.filled.VisibilityOff
+
+
 import kotlin.jvm.java
 
 class LoginPage : ComponentActivity() {
@@ -74,6 +89,7 @@ fun EmailInput(email: String, onEmailChange: (String) -> Unit, modifier: Modifie
 @Composable
 fun PasswordInput(password: String, onPasswordChange: (String) -> Unit, modifier: Modifier = Modifier){
 //    var input by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     Box(modifier = Modifier
         .clip(RoundedCornerShape(12.dp))
         .background(Color(0xFFFFC107))
@@ -84,7 +100,15 @@ fun PasswordInput(password: String, onPasswordChange: (String) -> Unit, modifier
             value = password,
             onValueChange = onPasswordChange,
             label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            // use painterResource with the drawable resource id
+            trailingIcon = {
+                val imageVector: ImageVector = ImageVector.vectorResource(id = if (passwordVisible) R.drawable.ic_visibility else R.drawable.ic_visibility_off)
+                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                    Icon(imageVector = imageVector, contentDescription = null)
+                }
+            }
         )
     }
 }
@@ -100,9 +124,52 @@ fun ButtonClicked(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
     }
 }
 
-fun validateLogin(email: String, password: String): Boolean {
-    return TODO("Provide the return value")
+
+fun validateLogin(context: Context, email: String, password: String): Boolean {
+    val dbHelper = DatabaseHelper(context)
+    var cursor: Cursor? = null
+
+    try {
+        // 1 Check for blank fields
+        if (email.isBlank() || password.isBlank()) {
+            Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+            return false
+        }
+
+        // 2 Check if user exists in the database
+        cursor = dbHelper.getUserByEmail(email)
+        if (!cursor.moveToFirst()) { // cursor == null || will always be false
+            Toast.makeText(context, "User not found. Please sign up first.", Toast.LENGTH_SHORT).show()
+            return false
+        }
+
+        // 3 Retrieve stored hashed password
+        val storedPassword = cursor.getString(
+            cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PASSWORD)
+        )
+
+        // 4 Hash input password and compare
+        val hashedInput = hashPassword(password)
+        if (storedPassword != hashedInput) {
+            Toast.makeText(context, "Incorrect password", Toast.LENGTH_SHORT).show()
+            return false
+        }
+
+        // 5 Success
+        Toast.makeText(context, "Login successful", Toast.LENGTH_SHORT).show()
+        return true
+
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Toast.makeText(context, "Login failed due to an error", Toast.LENGTH_SHORT).show()
+        return false
+
+    } finally {
+        cursor?.close()
+        dbHelper.close()
+    }
 }
+
 
 
 @Preview(showBackground = true)
@@ -132,8 +199,46 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                     val intent = Intent(context, SignUpPage::class.java) // error: context is not available here. Fixed by creating: class SignUpPage : ComponentActivity(){} in the SighUpPage.kt file
                     context.startActivity(intent)
                 }, modifier = Modifier.weight(1f))
-                ButtonClicked("Login", { TODO(/* navigate to login */) }, modifier = Modifier.weight(1f))
-                ButtonClicked("Exit", {TODO(/* exit app or break */)}, modifier = Modifier.weight(1f))
+                ButtonClicked("Login", {
+                    // Every validation will be examined using the validateLogin function making sure all are true
+                    val isValid = validateLogin(context, email, password)
+                    if (isValid) {
+
+                        val dbHelper = DatabaseHelper(context)
+                        val cursor = dbHelper.getUserByEmail(email)
+
+                        if (cursor.moveToFirst()){
+                            val firstName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_FIRST_NAME))
+                            val lastName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_LAST_NAME))
+                            cursor.close()
+                            dbHelper.close()
+
+                            // Pass user data to WelcomePage
+                            Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
+                            val intent = Intent(context, WelcomePage::class.java).apply {
+                                putExtra("first_name", firstName)
+                                putExtra("last_name", lastName)
+                                // Add flags to prevent back navigation
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            }
+                            context.startActivity(intent)
+                        }
+//                        Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
+//                        val intent = Intent(context, WelcomePage::class.java)
+//                        context.startActivity(intent)
+                    } else {
+                        Toast.makeText(context, "Invalid email or password", Toast.LENGTH_SHORT).show()
+                    }
+                }, modifier = Modifier.weight(1f))
+                // finishAffinity() ensures the backstack is cleared, while System.exit(0) stops the app process.
+                ButtonClicked("Exit", {
+                    // existing the program
+                    val activity = (context as? Activity)
+                    // closes all activities in the stack
+                    activity?.finishAffinity()
+                    // terminates the process
+                    System.exit(0)
+                }, modifier = Modifier.weight(1f))
 
             }
         }

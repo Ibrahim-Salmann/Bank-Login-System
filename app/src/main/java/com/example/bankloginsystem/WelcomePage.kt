@@ -1,61 +1,77 @@
 package com.example.bankloginsystem
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
-import kotlin.jvm.java
-
 
 class WelcomePage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Retrieving the user's full name when logging in
+        val firstName = intent.getStringExtra("first_name") ?: ""
+        val lastName = intent.getStringExtra("last_name") ?: ""
+        val fullName = "$firstName $lastName".trim()
+
         setContent {
             BankLoginSystemTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
-                    WelcomePageScreen(modifier = Modifier.padding(padding))
+                    WelcomePageScreen(modifier = Modifier.padding(padding),
+                        fullName = fullName)
                 }
             }
         }
     }
 }
 
-
-
 @Composable
-fun WelcomePageScreen(modifier: Modifier){
-    // TODO
+fun WelcomePageScreen(modifier: Modifier = Modifier, fullName: String = " ") {
+    val context = LocalContext.current
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Display name
+        if (fullName.isNotEmpty()) {
+            Text(text = "Welcome, $fullName!", modifier = Modifier.padding(bottom = 24.dp))
+        } else {
+            Text(text = "Welcome!", modifier = Modifier.padding(bottom = 24.dp))
+        }
+
+        Button(onClick = {
+            val intent = Intent(context, LoginPage::class.java)
+            context.startActivity(intent)
+            (context as? Activity)?.finish() // optional: prevents back navigation
+        }) {
+            Text("Logout")
+        }
+    }
 }
 
-@Preview
+@Preview(showBackground = true)
 @Composable
-fun WelcomePageScreenPreview(){
-    // TODO
+fun WelcomePageScreenPreview() {
+    BankLoginSystemTheme {
+        WelcomePageScreen()
+    }
 }
