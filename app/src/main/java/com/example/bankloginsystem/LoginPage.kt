@@ -48,8 +48,8 @@ class LoginPage : ComponentActivity() {
 }
 
 @Composable
-fun EmailInput(modifier: Modifier = Modifier) {
-    var input by remember { mutableStateOf("") }
+fun EmailInput(email: String, onEmailChange: (String) -> Unit, modifier: Modifier = Modifier) {
+//    var input by remember { mutableStateOf("") }
     Box(
         modifier = modifier
             // Clip the shape of the Box to have rounded corners
@@ -62,8 +62,8 @@ fun EmailInput(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         OutlinedTextField(
-            value = input,
-            onValueChange = { input = it },
+            value = email,
+            onValueChange = onEmailChange,
             label = { Text("Email") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -72,8 +72,8 @@ fun EmailInput(modifier: Modifier = Modifier) {
 
 
 @Composable
-fun PasswordInput(modifier: Modifier = Modifier){
-    var input by remember { mutableStateOf("") }
+fun PasswordInput(password: String, onPasswordChange: (String) -> Unit, modifier: Modifier = Modifier){
+//    var input by remember { mutableStateOf("") }
     Box(modifier = Modifier
         .clip(RoundedCornerShape(12.dp))
         .background(Color(0xFFFFC107))
@@ -81,8 +81,8 @@ fun PasswordInput(modifier: Modifier = Modifier){
     contentAlignment = Alignment.Center
     ) {
         OutlinedTextField(
-            value = input,
-            onValueChange = { input = it },
+            value = password,
+            onValueChange = onPasswordChange,
             label = { Text("Password") },
             modifier = Modifier.fillMaxWidth()
         )
@@ -100,12 +100,18 @@ fun ButtonClicked(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
     }
 }
 
+fun validateLogin(email: String, password: String): Boolean {
+    return TODO("Provide the return value")
+}
+
 
 @Preview(showBackground = true)
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    Scaffold {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    Scaffold { it ->
         Column(
             modifier = modifier.padding(it),
             verticalArrangement = Arrangement.Center,
@@ -113,9 +119,9 @@ fun HomeScreen(modifier: Modifier = Modifier) {
         ) {
             Text(text = "Login Screen")
             // Add the EmailInput composable to the HomeScreen
-            EmailInput(modifier = Modifier.padding(16.dp))
+            EmailInput( email = email, onEmailChange = { email = it }, modifier = Modifier.padding(16.dp))
             // Add the PasswordInput composable to the HomeScreen
-            PasswordInput(modifier = Modifier.padding(16.dp))
+            PasswordInput(password = password, onPasswordChange = {password = it}, modifier = Modifier.padding(16.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
