@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,9 +18,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -33,19 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
-//import androidx.compose.material.icons.Icons
-//import androidx.compose.material.icons.filled.Visibility
-//import androidx.compose.material.icons.filled.VisibilityOff
-
-
 import kotlin.jvm.java
 
 class LoginPage : ComponentActivity() {
@@ -87,31 +83,51 @@ fun EmailInput(email: String, onEmailChange: (String) -> Unit, modifier: Modifie
 
 
 @Composable
-fun PasswordInput(password: String, onPasswordChange: (String) -> Unit, modifier: Modifier = Modifier){
-//    var input by remember { mutableStateOf("") }
+fun PasswordInput(
+    password: String,
+    onPasswordChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     var passwordVisible by remember { mutableStateOf(false) }
-    Box(modifier = Modifier
-        .clip(RoundedCornerShape(12.dp))
-        .background(Color(0xFFFFC107))
-        .padding(horizontal = 24.dp, vertical = 16.dp),
-    contentAlignment = Alignment.Center
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFFFC107))
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        contentAlignment = Alignment.Center
     ) {
         OutlinedTextField(
             value = password,
             onValueChange = onPasswordChange,
             label = { Text("Password") },
             modifier = Modifier.fillMaxWidth(),
-            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            // use painterResource with the drawable resource id
+            visualTransformation = if (passwordVisible)
+                VisualTransformation.None
+            else
+                PasswordVisualTransformation(),
             trailingIcon = {
-                val imageVector: ImageVector = ImageVector.vectorResource(id = if (passwordVisible) R.drawable.ic_visibility else R.drawable.ic_visibility_off)
                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(imageVector = imageVector, contentDescription = null)
+                    Image(
+                        painter = painterResource(
+                            id = if (passwordVisible)
+                                R.drawable.ic_visibility_off
+                            else
+                                R.drawable.ic_visibility
+                        ),
+                        contentDescription = if (passwordVisible)
+                            "Hide password"
+                        else
+                            "Show password",
+                        modifier = Modifier.size(24.dp),
+                        colorFilter = ColorFilter.tint(Color.Black)
+                    )
                 }
             }
         )
     }
 }
+
 
 // Creating a button composable that will be used across all pages.
 @Composable
@@ -236,7 +252,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                     val activity = (context as? Activity)
                     // closes all activities in the stack
                     activity?.finishAffinity()
-                    // terminates the process
+//                     terminates the process
                     System.exit(0)
                 }, modifier = Modifier.weight(1f))
 

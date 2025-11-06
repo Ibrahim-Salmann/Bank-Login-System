@@ -42,7 +42,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import java.security.MessageDigest // For 'HASHing values of password
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 
-// The activity responsible for hosting the user sign-up screen.
+/**
+ * The SignUpPage activity hosts the user registration screen.
+ * It uses Jetpack Compose to build the UI and handles the logic for creating a new user account.
+ * This activity is responsible for:
+ * - Displaying the sign-up form.
+ * - Validating user input.
+ * - Inserting the new user into the SQLite database.
+ * - Navigating to the LoginPage upon successful registration.
+ */
 class SignUpPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,7 +93,11 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
     val phoneError = remember { mutableStateOf("") }
     val genderError = remember { mutableStateOf("") }
 
-    // LocalContext is used for creating Intents to navigate between activities.
+    /**
+     * The LocalContext is used here to get the application context.
+     * This context is then used to create an instance of the DatabaseHelper for SQLite database operations
+     * and to create Intents for navigating between activities.
+     */
     val context = LocalContext.current
 
     val passwordVisible = remember { mutableStateOf(false) }
@@ -234,6 +246,11 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
             if (validationFailed) return@Button
             // --- End Validation ---
 
+            /**
+             * This is where the SQLite database is used for internal storage.
+             * A new instance of DatabaseHelper is created, and the userExists and insertUser methods are called.
+             * This is how the app interacts with the database to store and retrieve user data.
+             */
             val dbHelper = DatabaseHelper(context)
             // Check for existing user after passing all other validations.
             if (dbHelper.userExists(mail)) {
@@ -245,6 +262,11 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
             val okay = dbHelper.insertUser(fName, lName, gChoice, mail, hashPassword(pass), phone, initialBalance.toDouble())
             if (okay){
                 Toast.makeText(context, "User added successfully", Toast.LENGTH_LONG).show()
+
+                /**
+                 * An Intent is used here to navigate from the SignUpPage to the LoginPage.
+                 * This is an example of explicit navigation between activities.
+                 */
                 val intent = Intent(context, LoginPage::class.java)
                 context.startActivity(intent)
             } else {
@@ -312,8 +334,11 @@ fun GenderSelection(selectedOption: String, onOptionSelected: (String) -> Unit, 
 }
 
 
-// Creating the database for the entries for each new user
-// Makes DatabaseHelper a concrete class that you can create instances of.
+/**
+ * This class is a SQLiteOpenHelper that manages database creation and version management.
+ * The SQLite database is a form of internal storage used here to persist user data.
+ * This is a good choice for storing structured data like user accounts.
+ */
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     // Defining the database structure
