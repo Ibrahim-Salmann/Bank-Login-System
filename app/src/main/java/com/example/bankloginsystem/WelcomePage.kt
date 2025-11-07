@@ -34,6 +34,7 @@ class WelcomePage : ComponentActivity() {
         val lastName = intent.getStringExtra("last_name") ?: ""
         val fullName = "$firstName $lastName".trim()
         val userBalance = intent.getDoubleExtra("balance", 0.0)
+        val email = intent.getStringExtra("email") ?: ""
 
 
         setContent {
@@ -42,7 +43,10 @@ class WelcomePage : ComponentActivity() {
                     WelcomePageScreen(
                         modifier = Modifier.padding(padding),
                         fullName = fullName,
-                        balance = userBalance
+                        balance = userBalance,
+                        email = email,
+                        firstName = firstName,
+                        lastName = lastName
                     )
                 }
             }
@@ -51,7 +55,14 @@ class WelcomePage : ComponentActivity() {
 }
 
 @Composable
-fun WelcomePageScreen(modifier: Modifier = Modifier, fullName: String = " ", balance: Double = 0.0) {
+fun WelcomePageScreen(
+    modifier: Modifier = Modifier,
+    fullName: String = " ",
+    balance: Double = 0.0,
+    email: String = "",
+    firstName: String = "",
+    lastName: String = ""
+) {
     val context = LocalContext.current
 
     Column(
@@ -81,13 +92,19 @@ fun WelcomePageScreen(modifier: Modifier = Modifier, fullName: String = " ", bal
         )
         {
             Button(onClick = {
-                // TODO
+                val intent = Intent(context, WithdrawPage::class.java).apply {
+                    putExtra("email", email)
+                    putExtra("first_name", firstName)
+                    putExtra("last_name", lastName)
+                }
+                context.startActivity(intent)
             }) {
                 Text("Withdraw")
             }
 
             Button(onClick = {
-                // TODO
+                val intent = Intent(context, DepositPage::class.java)
+                context.startActivity(intent)
             }) {
                 Text("Deposit")
             }

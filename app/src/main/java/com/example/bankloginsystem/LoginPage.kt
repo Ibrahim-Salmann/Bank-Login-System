@@ -236,6 +236,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                                 putExtra("first_name", firstName)
                                 putExtra("last_name", lastName)
                                 putExtra("balance", balance)
+                                putExtra("email", email)
                                 // Add flags to prevent back navigation
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                             }
