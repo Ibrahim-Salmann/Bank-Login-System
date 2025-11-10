@@ -127,7 +127,7 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
                 if (cursor.moveToFirst()) {
                     val currentBalance = cursor.getDouble(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_BALANCE))
 
-                    /*
+                    /**
                      * BUG FIX: The previous logic incorrectly checked if the deposit amount was less
                      * than the current balance, which is meant for withdrawals. This prevented
                      * the deposit from ever being processed.
@@ -171,7 +171,7 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
 
             } catch (e: Exception) {
                 e.printStackTrace()
-                /*
+                /**
                  * CHANGE: The error message in the catch block has been updated to be more
                  * specific to the deposit operation, changing from "withdrawal" to "deposit".
                  */
