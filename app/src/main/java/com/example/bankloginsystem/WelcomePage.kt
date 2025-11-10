@@ -29,12 +29,42 @@ class WelcomePage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Retrieving the user's full name when logging in
-        val firstName = intent.getStringExtra("first_name") ?: ""
-        val lastName = intent.getStringExtra("last_name") ?: ""
-        val fullName = "$firstName $lastName".trim()
-        val userBalance = intent.getDoubleExtra("balance", 0.0)
-        val email = intent.getStringExtra("email") ?: ""
+        // Change: Initialize UserSessionManager to retrieve session data.
+        val userSessionManager = UserSessionManager(this)
+        // Change: Check if the user is logged in. If not, redirect to LoginPage.
+        if (!userSessionManager.isLoggedIn()) {
+            val intent = Intent(this, LoginPage::class.java)
+            startActivity(intent)
+            finish()
+            return
+        }
+
+        // Change: Fetch user details from the session.
+        val userDetails = userSessionManager.getUserDetails()
+        val fullName = userDetails[UserSessionManager.PREF_FULL_NAME] ?: ""
+        val email = userDetails[UserSessionManager.PREF_EMAIL] ?: ""
+
+//        // Retrieving the user's full name when logging in
+//        val firstName = intent.getStringExtra("first_name") ?: ""
+//        val lastName = intent.getStringExtra("last_name") ?: ""
+//        val fullName = "$firstName $lastName".trim()
+//        val userBalance = intent.getDoubleExtra("balance", 0.0)
+//        val email = intent.getStringExtra("email") ?: ""
+
+        // Change: Fetch the user's balance from the database using the email from the session.
+        val dbHelper = DatabaseHelper(this)
+        val cursor = dbHelper.getUserByEmail(email)
+        var userBalance = 0.0
+        var firstName = ""
+        var lastName = ""
+        if (cursor.moveToFirst()) {
+            userBalance = cursor.getDouble(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_BALANCE))
+            // Change: Also fetching first and last name to pass to other activities if needed.
+            firstName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_FIRST_NAME))
+            lastName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_LAST_NAME))
+        }
+        cursor.close()
+        dbHelper.close()
 
 
         setContent {
@@ -64,6 +94,8 @@ fun WelcomePageScreen(
     lastName: String = ""
 ) {
     val context = LocalContext.current
+    // Change: Initialize UserSessionManager for logout functionality.
+    val userSessionManager = UserSessionManager(context)
 
     Column(
         modifier = modifier
@@ -117,7 +149,11 @@ fun WelcomePageScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedButton(onClick = {
+            // Change: Log out the user by clearing the session.
+            userSessionManager.logoutUser()
             val intent = Intent(context, LoginPage::class.java)
+            // Change: Add flags to clear the back stack and prevent returning to this page.
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             context.startActivity(intent)
             (context as? Activity)?.finish() // optional: prevents back navigation
         }) {

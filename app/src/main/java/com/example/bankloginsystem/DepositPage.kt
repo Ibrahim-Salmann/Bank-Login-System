@@ -45,6 +45,8 @@ class DepositPage : ComponentActivity() {
 fun DepositPageScreen(modifier: Modifier = Modifier){
     val context = LocalContext.current
     val dbHelper = DatabaseHelper(context)
+    // Change: Initialize UserSessionManager to retrieve session data.
+    val userSessionManager = UserSessionManager(context)
 
     val depositAmount = remember { mutableStateOf("") }
     val depositAmountError = remember { mutableStateOf("") }
@@ -78,16 +80,26 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
         ButtonClicked("Submit", {
             val amount = depositAmount.value.trim()
 
-            /*
-             * BUG FIX: The context was being cast to WithdrawPage, which caused a
-             * ClassCastException and crashed the app.
-             *
-             * CHANGE: The context is now correctly cast to DepositPage to retrieve the
-             * intent extras.
-             */
-            val email = (context as DepositPage).intent.getStringExtra("email")
-            val firstName = context.intent.getStringExtra("first_name") ?: ""
-            val lastName = context.intent.getStringExtra("last_name") ?: ""
+            // Change: Fetch user's email from the session.
+            val userDetails = userSessionManager.getUserDetails()
+            val email = userDetails[UserSessionManager.PREF_EMAIL]
+
+//            /*
+//             * BUG FIX: The context was being cast to WithdrawPage, which caused a
+//             * ClassCastException and crashed the app.
+//             *
+//             * CHANGE: The context is now correctly cast to DepositPage to retrieve the
+//             * intent extras.
+//             */
+//            val email = (context as DepositPage).intent.getStringExtra("email")
+//            val firstName = context.intent.getStringExtra("first_name") ?: ""
+//            val lastName = context.intent.getStringExtra("last_name") ?: ""
+
+            // Change: Check if email is null or empty. If so, the user is not logged in.
+            if (email.isNullOrEmpty()) {
+                Toast.makeText(context, "Error: User not logged in", Toast.LENGTH_SHORT).show()
+                return@ButtonClicked
+            }
 
             if (amount.isEmpty()) {
                 depositAmountError.value = "Please enter an amount."
@@ -141,12 +153,13 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
                         Toast.makeText(context, "Deposit successful!", Toast.LENGTH_SHORT)
                             .show()
 
+                        // Change: No longer need to pass data via intent.
                         // Send updated balance to WelcomePage
                         val intent = Intent(context, WelcomePage::class.java).apply {
-                            putExtra("email", email)
-                            putExtra("first_name", firstName)
-                            putExtra("last_name", lastName)
-                            putExtra("balance", newBalance)
+//                            putExtra("email", email)
+//                            putExtra("first_name", firstName)
+//                            putExtra("last_name", lastName)
+//                            putExtra("balance", newBalance)
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         }
                         context.startActivity(intent)

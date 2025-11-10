@@ -49,6 +49,8 @@ fun WithdrawPageScreen(
 ) {
     val context = LocalContext.current
     val dbHelper = DatabaseHelper(context)
+    // Change: Initialize UserSessionManager to retrieve session data.
+    val userSessionManager = UserSessionManager(context)
 
     val withdrawnAmount = remember { mutableStateOf("") }
     val withdrawnAmountError = remember { mutableStateOf("") }
@@ -83,9 +85,19 @@ fun WithdrawPageScreen(
         ButtonClicked("Submit", {
             val amount = withdrawnAmount.value.trim()
 
-            val email = (context as WithdrawPage).intent.getStringExtra("email")
-            val firstName = context.intent.getStringExtra("first_name") ?: ""
-            val lastName = context.intent.getStringExtra("last_name") ?: ""
+            // Change: Fetch user's email from the session.
+            val userDetails = userSessionManager.getUserDetails()
+            val email = userDetails[UserSessionManager.PREF_EMAIL]
+
+//            val email = (context as WithdrawPage).intent.getStringExtra("email")
+//            val firstName = context.intent.getStringExtra("first_name") ?: ""
+//            val lastName = context.intent.getStringExtra("last_name") ?: ""
+
+            // Change: Check if email is null or empty. If so, the user is not logged in.
+            if (email.isNullOrEmpty()) {
+                Toast.makeText(context, "Error: User not logged in", Toast.LENGTH_SHORT).show()
+                return@ButtonClicked
+            }
 
             if (amount.isEmpty()) {
                 withdrawnAmountError.value = "Please enter an amount."
@@ -131,12 +143,13 @@ fun WithdrawPageScreen(
                             Toast.makeText(context, "Withdrawal successful!", Toast.LENGTH_SHORT)
                                 .show()
 
+                            // Change: No longer need to pass data via intent.
                             // Send updated balance to WelcomePage
                             val intent = Intent(context, WelcomePage::class.java).apply {
-                                putExtra("email", email)
-                                putExtra("first_name", firstName)
-                                putExtra("last_name", lastName)
-                                putExtra("balance", newBalance)
+//                                putExtra("email", email)
+//                                putExtra("first_name", firstName)
+//                                putExtra("last_name", lastName)
+//                                putExtra("balance", newBalance)
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                             }
                             context.startActivity(intent)

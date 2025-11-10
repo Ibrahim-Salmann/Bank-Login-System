@@ -43,11 +43,19 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import kotlin.jvm.java
+import kotlin.system.exitProcess
 
 class LoginPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Session in Android app using SharedPreference
+        val userSessionManager = UserSessionManager(this)
+        if (userSessionManager.isLoggedIn()){
+            val intent = Intent(this, WelcomePage::class.java)
+            startActivity(intent)
+            finish()
+        }
         setContent {
             BankLoginSystemTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -194,6 +202,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val userSessionManager = UserSessionManager(context)
     Scaffold { it ->
         Column(
             modifier = modifier.padding(it),
@@ -231,6 +240,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                             dbHelper.close()
 
                             // Pass user data to WelcomePage
+                            userSessionManager.saveUser("$firstName $lastName", email)
                             Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                             val intent = Intent(context, WelcomePage::class.java).apply {
                                 putExtra("first_name", firstName)
@@ -256,7 +266,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                     // closes all activities in the stack
                     activity?.finishAffinity()
 //                     terminates the process
-                    System.exit(0)
+                    exitProcess(0)
                 }, modifier = Modifier.weight(1f))
 
             }
