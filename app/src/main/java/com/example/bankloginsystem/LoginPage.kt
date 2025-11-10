@@ -50,6 +50,13 @@ class LoginPage : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Session in Android app using SharedPreference
+        /**
+         * Session Check on App Start:
+         * 1. An instance of UserSessionManager is created.
+         * 2. It immediately checks if a user is already logged in using `isLoggedIn()`.
+         * 3. If true, it skips the LoginPage and navigates directly to the WelcomePage.
+         * This is the core of the persistent session experience.
+         */
         val userSessionManager = UserSessionManager(this)
         if (userSessionManager.isLoggedIn()){
             val intent = Intent(this, WelcomePage::class.java)
@@ -240,6 +247,11 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                             dbHelper.close()
 
                             // Pass user data to WelcomePage
+                            /**
+                             * Creating the Session:
+                             * Upon successful login, `saveUser()` is called.
+                             * This stores the user's name and email in SharedPreferences, officially starting the session.
+                             */
                             userSessionManager.saveUser("$firstName $lastName", email)
                             Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                             val intent = Intent(context, WelcomePage::class.java).apply {
