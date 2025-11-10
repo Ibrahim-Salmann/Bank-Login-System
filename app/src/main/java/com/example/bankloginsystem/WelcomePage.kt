@@ -103,7 +103,11 @@ fun WelcomePageScreen(
             }
 
             Button(onClick = {
-                val intent = Intent(context, DepositPage::class.java)
+                val intent = Intent(context, DepositPage::class.java).apply {
+                    putExtra("email", email)
+                    putExtra("first_name", firstName)
+                    putExtra("last_name", lastName)
+                }
                 context.startActivity(intent)
             }) {
                 Text("Deposit")
