@@ -40,6 +40,8 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.widget.Toast
 import androidx.compose.ui.text.input.VisualTransformation
 import java.security.MessageDigest // For 'HASHing values of password
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 
 /**
@@ -143,8 +145,9 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
         // Password field with "Show/Hide"
         OutlinedTextField(
             value = password.value,
-            onValueChange = { password.value = it },
+            onValueChange = { password.value = it; passwordError.value = ""},
             label = { Text("Password") },
+            isError = passwordError.value.isNotEmpty(),
             visualTransformation = if (passwordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 TextButton(onClick = { passwordVisible.value = !passwordVisible.value }) {
@@ -153,14 +156,16 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
             },
             modifier = Modifier.fillMaxWidth()
         )
+        if (passwordError.value.isEmpty()) Text( passwordError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // Confirm Password field with "Show/Hide"
         OutlinedTextField(
             value = confirmPassword.value,
-            onValueChange = { confirmPassword.value = it },
+            onValueChange = { confirmPassword.value = it; confirmError.value = "" },
             label = { Text("Confirm Password") },
+            isError = confirmError.value.isNotEmpty(),
             visualTransformation = if (confirmPasswordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 TextButton(onClick = { confirmPasswordVisible.value = !confirmPasswordVisible.value }) {
@@ -169,12 +174,15 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
             },
             modifier = Modifier.fillMaxWidth()
         )
+        if (confirmError.value.isNotEmpty()) Text(confirmError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
 
         Spacer(modifier = Modifier.height(12.dp))
 
         // --- Phone Number ---
-        OutlinedTextField(value = phoneNumber.value, onValueChange = { phoneNumber.value = it; phoneError.value = "" }, label = { Text("Phone Number") }, isError = phoneError.value.isNotEmpty())
+        OutlinedTextField(value = phoneNumber.value, onValueChange = { newText -> phoneNumber.value = newText.filter { it.isDigit() }; phoneError.value = "" },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            label = { Text("Phone Number") }, isError = phoneError.value.isNotEmpty())
         if (phoneError.value.isNotEmpty()) Text(phoneError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
         Spacer(modifier = Modifier.height(16.dp))
