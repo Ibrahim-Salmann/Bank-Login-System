@@ -3,6 +3,7 @@ package com.example.bankloginsystem
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,8 @@ class WelcomePage : ComponentActivity() {
         val userDetails = userSessionManager.getUserDetails()
         val fullName = userDetails[UserSessionManager.PREF_FULL_NAME] ?: ""
         val email = userDetails[UserSessionManager.PREF_EMAIL] ?: ""
+//        val id = userDetails[UserSessionManager.PREF_USER_ID] ?: ""
+
 
 //        // Retrieving the user's full name when logging in
 //        val firstName = intent.getStringExtra("first_name") ?: ""
@@ -144,6 +147,16 @@ fun WelcomePageScreen(
         }) {
             Text("Logout")
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        OutlinedButton(onClick = {
+            Toast.makeText(context, "Welcome to your book shelf!", Toast.LENGTH_SHORT).show()
+            val intent = Intent(context, BookShelfPage::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            context.startActivity(intent)
+        }) { Text("My Book Shelf")}
     }
 }
 

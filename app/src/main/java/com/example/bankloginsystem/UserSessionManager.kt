@@ -23,6 +23,7 @@ class UserSessionManager(context: Context) {
          const val PREF_FULL_NAME = "fullName"
          const val PREF_EMAIL = "email"
          const val PREF_IS_LOGIN = "isLogin"
+         const val PREF_USER_ID = "id"
     }
 
     /**
@@ -30,10 +31,11 @@ class UserSessionManager(context: Context) {
      * It stores the user's name, email, and sets the login flag to true.
      * .apply() saves the changes asynchronously, which is better for performance.
      */
-    fun saveUser(fullName: String, email: String) {
+    fun saveUser(fullName: String, email: String, id: Int) {
         prefEditor.putString(PREF_FULL_NAME, fullName)
         prefEditor.putString(PREF_EMAIL, email)
         prefEditor.putBoolean(PREF_IS_LOGIN, true)
+        prefEditor.putInt(PREF_USER_ID, id)
         prefEditor.apply()
     }
 
@@ -53,6 +55,7 @@ class UserSessionManager(context: Context) {
         val userData = HashMap<String, String>()
         userData[PREF_FULL_NAME] = sharedPreference.getString(PREF_FULL_NAME, "") ?: ""
         userData[PREF_EMAIL] = sharedPreference.getString(PREF_EMAIL, "") ?: ""
+        userData[PREF_USER_ID] = sharedPreference.getInt(PREF_USER_ID, 0).toString()
         return userData
     }
 

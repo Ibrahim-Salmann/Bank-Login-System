@@ -242,6 +242,8 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                         if (cursor.moveToFirst()){
                             val firstName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_FIRST_NAME))
                             val lastName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_LAST_NAME))
+                            val id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_ID))
+
                             cursor.close()
                             dbHelper.close()
 
@@ -251,7 +253,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                              * Upon successful login, `saveUser()` is called.
                              * This stores the user's name and email in SharedPreferences, officially starting the session.
                              */
-                            userSessionManager.saveUser("$firstName $lastName", email)
+                            userSessionManager.saveUser("$firstName $lastName", email, id)
                             Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                             val intent = Intent(context, WelcomePage::class.java).apply {
                                 // Add flags to prevent back navigation
