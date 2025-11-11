@@ -55,13 +55,8 @@ class WelcomePage : ComponentActivity() {
         val dbHelper = DatabaseHelper(this)
         val cursor = dbHelper.getUserByEmail(email)
         var userBalance = 0.0
-        var firstName = ""
-        var lastName = ""
         if (cursor.moveToFirst()) {
             userBalance = cursor.getDouble(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_BALANCE))
-            // Change: Also fetching first and last name to pass to other activities if needed.
-            firstName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_FIRST_NAME))
-            lastName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_LAST_NAME))
         }
         cursor.close()
         dbHelper.close()
@@ -73,10 +68,7 @@ class WelcomePage : ComponentActivity() {
                     WelcomePageScreen(
                         modifier = Modifier.padding(padding),
                         fullName = fullName,
-                        balance = userBalance,
-                        email = email,
-                        firstName = firstName,
-                        lastName = lastName
+                        balance = userBalance
                     )
                 }
             }
@@ -88,10 +80,7 @@ class WelcomePage : ComponentActivity() {
 fun WelcomePageScreen(
     modifier: Modifier = Modifier,
     fullName: String = " ",
-    balance: Double = 0.0,
-    email: String = "",
-    firstName: String = "",
-    lastName: String = ""
+    balance: Double = 0.0
 ) {
     val context = LocalContext.current
     // Change: Initialize UserSessionManager for logout functionality.
@@ -124,22 +113,18 @@ fun WelcomePageScreen(
         )
         {
             Button(onClick = {
-                val intent = Intent(context, WithdrawPage::class.java).apply {
-                    putExtra("email", email)
-                    putExtra("first_name", firstName)
-                    putExtra("last_name", lastName)
-                }
+                // The Intent now only needs to specify the destination.
+                // WithdrawPage will get the user's email from the session itself.
+                val intent = Intent(context, WithdrawPage::class.java)
                 context.startActivity(intent)
             }) {
                 Text("Withdraw")
             }
 
             Button(onClick = {
-                val intent = Intent(context, DepositPage::class.java).apply {
-                    putExtra("email", email)
-                    putExtra("first_name", firstName)
-                    putExtra("last_name", lastName)
-                }
+                // The Intent now only needs to specify the destination.
+                // DepositPage will get the user's email from the session itself.
+                val intent = Intent(context, DepositPage::class.java)
                 context.startActivity(intent)
             }) {
                 Text("Deposit")
