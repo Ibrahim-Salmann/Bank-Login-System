@@ -136,6 +136,17 @@ fun WelcomePageScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+
+        OutlinedButton(onClick = {
+            Toast.makeText(context, "Welcome to your book shelf!", Toast.LENGTH_SHORT).show()
+            val intent = Intent(context, BookShelfPage::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
+            context.startActivity(intent)
+        }) { Text("My Book Shelf")}
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         OutlinedButton(onClick = {
             // Change: Log out the user by clearing the session.
             userSessionManager.logoutUser()
@@ -149,14 +160,6 @@ fun WelcomePageScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedButton(onClick = {
-            Toast.makeText(context, "Welcome to your book shelf!", Toast.LENGTH_SHORT).show()
-            val intent = Intent(context, BookShelfPage::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-            context.startActivity(intent)
-        }) { Text("My Book Shelf")}
     }
 }
 
