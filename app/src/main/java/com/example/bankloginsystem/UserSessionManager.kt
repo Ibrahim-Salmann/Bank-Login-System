@@ -35,7 +35,7 @@ class UserSessionManager(context: Context) {
         prefEditor.putString(PREF_FULL_NAME, fullName)
         prefEditor.putString(PREF_EMAIL, email)
         prefEditor.putBoolean(PREF_IS_LOGIN, true)
-        prefEditor.putInt(PREF_USER_ID, id)
+        prefEditor.putString(PREF_USER_ID, id.toString())
         prefEditor.apply()
     }
 
@@ -55,7 +55,7 @@ class UserSessionManager(context: Context) {
         val userData = HashMap<String, String>()
         userData[PREF_FULL_NAME] = sharedPreference.getString(PREF_FULL_NAME, "") ?: ""
         userData[PREF_EMAIL] = sharedPreference.getString(PREF_EMAIL, "") ?: ""
-        userData[PREF_USER_ID] = sharedPreference.getInt(PREF_USER_ID, 0).toString()
+        userData[PREF_USER_ID] = sharedPreference.getString(PREF_USER_ID, "0") ?: "0"
         return userData
     }
 

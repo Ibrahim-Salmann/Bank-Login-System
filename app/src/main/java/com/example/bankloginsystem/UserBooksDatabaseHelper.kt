@@ -7,6 +7,19 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 
+// Data class to represent a record from the user_books table
+data class UserBook(
+    val id: Int,
+    val userId: Int,
+    val bookId: Int?,
+    val name: String,
+    val author: String,
+    val category: String,
+    val genre: String,
+    val coverUri: String?,
+    val status: String?
+)
+
 class UserBooksDatabaseHelper(context: Context)
     : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
@@ -64,7 +77,11 @@ class UserBooksDatabaseHelper(context: Context)
         return try {
             val values = ContentValues().apply {
                 put(COLUMN_USER_ID, userId)
-                put(COLUMN_BOOK_ID, bookId)
+                if (bookId != null) {
+                    put(COLUMN_BOOK_ID, bookId)
+                } else {
+                    putNull(COLUMN_BOOK_ID)
+                }
                 put(COLUMN_BOOK_NAME, name)
                 put(COLUMN_AUTHOR, author)
                 put(COLUMN_CATEGORY, category)
@@ -82,12 +99,47 @@ class UserBooksDatabaseHelper(context: Context)
     }
 
     //  Get all books for the logged-in user
-    fun getBooksByUser(userId: Int): Cursor {
+    fun getBooksByUser(userId: Int): List<UserBook> {
+        val bookList = mutableListOf<UserBook>()
         val db = this.readableDatabase
-        return db.rawQuery(
-            "SELECT * FROM $TABLE_NAME WHERE $COLUMN_USER_ID = ?",
-            arrayOf(userId.toString())
-        )
+        var cursor: Cursor? = null
+        try {
+            cursor = db.rawQuery(
+                "SELECT * FROM $TABLE_NAME WHERE $COLUMN_USER_ID = ?",
+                arrayOf(userId.toString())
+            )
+            if (cursor.moveToFirst()) {
+                do {
+                    val bookIdIndex = cursor.getColumnIndex(COLUMN_BOOK_ID)
+                    val bookId = if (bookIdIndex != -1 && !cursor.isNull(bookIdIndex)) cursor.getInt(bookIdIndex) else null
+
+                    val coverUriIndex = cursor.getColumnIndex(COLUMN_COVER_URI)
+                    val coverUri = if (coverUriIndex != -1 && !cursor.isNull(coverUriIndex)) cursor.getString(coverUriIndex) else null
+
+                    val statusIndex = cursor.getColumnIndex(COLUMN_STATUS)
+                    val status = if (statusIndex != -1 && !cursor.isNull(statusIndex)) cursor.getString(statusIndex) else null
+
+                    val book = UserBook(
+                        id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ID)),
+                        userId = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_USER_ID)),
+                        bookId = bookId,
+                        name = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_BOOK_NAME)),
+                        author = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_AUTHOR)),
+                        category = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CATEGORY)),
+                        genre = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_GENRE)),
+                        coverUri = coverUri,
+                        status = status
+                    )
+                    bookList.add(book)
+                } while (cursor.moveToNext())
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            cursor?.close()
+            db.close()
+        }
+        return bookList
     }
 
     //  Update book status (e.g. read/bookmarked/dropped)
@@ -107,6 +159,22 @@ class UserBooksDatabaseHelper(context: Context)
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        } finally {
+            db.close()
+        }
+    }
+
+    // Update (for "Change Cover Image")
+    fun updateBookCover(bookId: Int, newImagePath: String): Int {
+        val db = this.writableDatabase
+        return try {
+            val values = ContentValues().apply {
+                put(COLUMN_COVER_URI, newImagePath)
+            }
+            db.update(TABLE_NAME, values, "$COLUMN_ID=?", arrayOf(bookId.toString()))
+        } catch (e: Exception) {
+            e.printStackTrace()
+            -1
         } finally {
             db.close()
         }

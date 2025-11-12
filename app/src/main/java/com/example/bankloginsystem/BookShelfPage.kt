@@ -18,7 +18,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -29,11 +28,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
-import kotlin.jvm.java
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.launch
 
 class BookShelfPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,29 +51,33 @@ class BookShelfPage : ComponentActivity() {
         setContent {
             BankLoginSystemTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
-                    BookShelfPage(modifier = Modifier.padding(padding),
-                        userId = userId.toString()) } }
+                    BookShelfScreen(
+                        modifier = Modifier.padding(padding),
+                        userId = userId
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-fun BookShelfPage(modifier: Modifier = Modifier, userId: String) {
+fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
     var searchQuery by remember { mutableStateOf("") }
     var deleteMode by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val dbHelper = remember { UserBooksDatabaseHelper(context) }
+    var allBooks by remember { mutableStateOf<List<UserBook>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Placeholder data (we’ll replace with DB data later)
-    /**
-     * This is just for code functionality and will later be replaced by the database
-     */
-    val allBooks = remember {
-        mutableStateListOf(
-            BookDisplay("The Hobbit", "J.R.R. Tolkien", "Fantasy", "Adventure"),
-            BookDisplay("Dune", "Frank Herbert", "Sci-Fi", "Epic"),
-            BookDisplay("1984", "George Orwell", "Fiction", "Dystopia")
-        )
+    LaunchedEffect(key1 = userId) {
+        coroutineScope.launch {
+            val id = userId.toIntOrNull()
+            if (id != null) {
+                allBooks = dbHelper.getBooksByUser(id)
+            }
+        }
     }
 
 
@@ -87,10 +92,12 @@ fun BookShelfPage(modifier: Modifier = Modifier, userId: String) {
         // Top tab bar
         TopToolbar(
             deleteMode = deleteMode,
-            onAddClick = { /* TODO: Intent to AddBookPage */ },
+            onAddClick = {
+                val intent = Intent(context, AddBookPage::class.java)
+                context.startActivity(intent)
+            },
             onDeleteToggle = { deleteMode = !deleteMode },
             onReturnClick = {
-//                val context = LocalContext.current
                 val intent = Intent(context, WelcomePage::class.java)
                 context.startActivity(intent)
                 (context as? Activity)?.finish()
@@ -110,7 +117,6 @@ fun BookShelfPage(modifier: Modifier = Modifier, userId: String) {
             }
         }
     }
-
 
 
 }
@@ -148,7 +154,7 @@ fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
 }
 
 @Composable
-fun BookRow(book: BookDisplay, deleteMode: Boolean) {
+fun BookRow(book: UserBook, deleteMode: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -167,17 +173,10 @@ fun BookRow(book: BookDisplay, deleteMode: Boolean) {
     }
 }
 
-data class BookDisplay(
-    val name: String,
-    val author: String,
-    val category: String,
-    val genre: String
-)
-
 @Preview(showBackground = true)
 @Composable
 fun BookShelfScreenPreview() {
     BankLoginSystemTheme {
-        BookShelfPage(userId = "1")
+        BookShelfScreen(userId = "1")
     }
 }
