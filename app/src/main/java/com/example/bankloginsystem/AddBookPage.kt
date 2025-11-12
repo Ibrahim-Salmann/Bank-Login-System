@@ -49,6 +49,8 @@ fun AddBookScreen(context: Context) {
     var selectedGenre by remember { mutableStateOf<String?>(null) }
     var coverImageUri by remember { mutableStateOf<Uri?>(null) }
     var coverBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    // --- IMPLEMENTATION: State for the book's initial status ---
+    var selectedStatus by remember { mutableStateOf<String?>(null) }
 
     val categories = listOf(
         "FICTION", "NON-FICTION", "POETRY", "DRAMA / PLAYS",
@@ -56,14 +58,17 @@ fun AddBookScreen(context: Context) {
     )
 
     val genreMap = mapOf(
-        "FICTION" to listOf("Fantasy", "Mystery", "Romance", "Adventure"),
+        "FICTION" to listOf("Fantasy", "Mystery", "Romance", "Adventure", "Horror", "Science-Fiction", "Drama", "Comedy", "Thriller"),
         "NON-FICTION" to listOf("Biography", "History", "Self-Help", "Science"),
         "POETRY" to listOf("Epic", "Lyric", "Narrative", "Free Verse"),
         "DRAMA / PLAYS" to listOf("Tragedy", "Comedy", "Modern Drama"),
         "COMICS / GRAPHIC NOVELS" to listOf("Superhero", "Manga", "Graphic Memoir"),
         "CHILDREN’S BOOKS" to listOf("Picture Books", "Middle Grade", "Fairytale"),
-        "YOUNG ADULT (YA)" to listOf("Fantasy", "Romance", "Dystopian")
+        "YOUNG ADULT (YA)" to listOf("Fantasy", "Romance", "Dystopian", "Drama")
     )
+
+    // --- IMPLEMENTATION: List of available statuses ---
+    val statuses = listOf("Reading", "Completed", "On Hold", "Dropped", "Plan to Read")
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
         bitmap?.let { coverBitmap = it }
@@ -97,99 +102,73 @@ fun AddBookScreen(context: Context) {
             modifier = Modifier.fillMaxWidth()
         )
 
-        // CATEGORY DROPDOWN
         var categoryExpanded by remember { mutableStateOf(false) }
         Box {
-            Button(
-                onClick = { categoryExpanded = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Button(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) {
                 Text(selectedCategory ?: "Select Category")
             }
-            DropdownMenu(
-                expanded = categoryExpanded,
-                onDismissRequest = { categoryExpanded = false }
-            ) {
+            DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
                 categories.forEach { category ->
                     DropdownMenuItem(
                         text = { Text(category) },
-                        onClick = {
-                            selectedCategory = category
-                            selectedGenre = null
-                            categoryExpanded = false
-                        }
+                        onClick = { selectedCategory = category; selectedGenre = null; categoryExpanded = false }
                     )
                 }
             }
         }
 
-        // GENRE DROPDOWN (depends on category)
         val genres = genreMap[selectedCategory] ?: emptyList()
         var genreExpanded by remember { mutableStateOf(false) }
-
         Box {
-            Button(
-                onClick = { if (selectedCategory != null) genreExpanded = true },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = selectedCategory != null
-            ) {
+            Button(onClick = { if (selectedCategory != null) genreExpanded = true }, modifier = Modifier.fillMaxWidth(), enabled = selectedCategory != null) {
                 Text(selectedGenre ?: "Select Genre")
             }
-            DropdownMenu(
-                expanded = genreExpanded,
-                onDismissRequest = { genreExpanded = false }
-            ) {
+            DropdownMenu(expanded = genreExpanded, onDismissRequest = { genreExpanded = false }) {
                 genres.forEach { genre ->
-                    DropdownMenuItem(
-                        text = { Text(genre) },
-                        onClick = {
-                            selectedGenre = genre
-                            genreExpanded = false
-                        }
-                    )
+                    DropdownMenuItem(text = { Text(genre) }, onClick = { selectedGenre = genre; genreExpanded = false })
                 }
             }
         }
 
-        // IMAGE SELECTION
+        // --- IMPLEMENTATION: Dropdown for setting initial status ---
+        var statusExpanded by remember { mutableStateOf(false) }
+        Box {
+            Button(onClick = { statusExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(selectedStatus ?: "Set Initial Status (Optional)")
+            }
+            DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                statuses.forEach { status ->
+                    DropdownMenuItem(text = { Text(status) }, onClick = { selectedStatus = status; statusExpanded = false })
+                }
+            }
+        }
+
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Insert Cover Image")
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Button(onClick = { cameraLauncher.launch(null) }) {
-                    Text("📷 Camera")
-                }
-                Button(onClick = { galleryLauncher.launch("image/*") }) {
-                    Text("🖼 Gallery")
-                }
+                Button(onClick = { cameraLauncher.launch(null) }) { Text("📷 Camera") }
+                Button(onClick = { galleryLauncher.launch("image/*") }) { Text("🖼 Gallery") }
             }
         }
 
-        coverBitmap?.let {
-            Image(bitmap = it.asImageBitmap(), contentDescription = "Cover Preview", modifier = Modifier.size(150.dp))
-        }
+        coverBitmap?.let { Image(bitmap = it.asImageBitmap(), contentDescription = "Cover Preview", modifier = Modifier.size(150.dp)) }
+        coverImageUri?.let { Text("Selected image: ${it.lastPathSegment}", color = Color.DarkGray) }
 
-        coverImageUri?.let {
-            Text("Selected image: ${it.lastPathSegment}", color = Color.DarkGray)
-        }
-
-        // SUBMIT BUTTON
         Button(
             onClick = {
-                if (bookName.text.isEmpty() || authorName.text.isEmpty() ||
-                    selectedCategory == null || selectedGenre == null
-                ) {
+                if (bookName.text.isEmpty() || authorName.text.isEmpty() || selectedCategory == null || selectedGenre == null) {
                     Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
                 } else {
                     val userId = userSessionManager.getUserDetails()[UserSessionManager.PREF_USER_ID]
                     val result = dbHelper.insertUserBook(
                         userId = userId!!.toInt(),
-                        bookId = null,
                         name = bookName.text,
                         author = authorName.text,
                         category = selectedCategory!!,
                         genre = selectedGenre!!,
                         coverUri = coverImageUri?.toString(),
-                        status = null
+                        // --- IMPLEMENTATION: Pass the selected status to the database ---
+                        status = selectedStatus
                     )
 
                     if (result) {
@@ -200,14 +179,13 @@ fun AddBookScreen(context: Context) {
                         selectedGenre = null
                         coverImageUri = null
                         coverBitmap = null
+                        selectedStatus = null
                     } else {
                         Toast.makeText(context, "Error adding book.", Toast.LENGTH_SHORT).show()
                     }
                 }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A5E2A))
         ) {
             Text("Submit", color = Color.White)
