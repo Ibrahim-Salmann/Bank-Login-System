@@ -2,7 +2,6 @@ package com.example.bankloginsystem
 
 import android.Manifest
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -43,9 +42,15 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * The BookShelfPage activity displays the user's personal collection of books.
+ * It is the main hub for viewing, adding, updating, and deleting books.
+ * It ensures that only a logged-in user can access this screen.
+ */
 class BookShelfPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Session validation: Ensures a user is logged in before showing the page.
         val userSessionManager = UserSessionManager(this)
         if (!userSessionManager.isLoggedIn()) {
             val intent = Intent(this, LoginPage::class.java)
@@ -53,8 +58,11 @@ class BookShelfPage : ComponentActivity() {
             finish()
             return
         }
+
+        // Retrieve the logged-in user's ID to fetch their specific data.
         val userDetails = userSessionManager.getUserDetails()
         val userId = userDetails[UserSessionManager.PREF_USER_ID] ?: ""
+
         setContent {
             BankLoginSystemTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
@@ -68,28 +76,48 @@ class BookShelfPage : ComponentActivity() {
     }
 }
 
+/**
+ * Creates a temporary, uniquely named image file in the app's private storage.
+ * This is a required helper function for the modern `TakePicture` camera contract.
+ * @param context The application context, used to access the file system.
+ * @return A secure content URI for the newly created file, ready to be used by the camera app.
+ */
 private fun createImageFile(context: Context): Uri {
     val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
     val imageFileName = "JPEG_${timeStamp}_"
     val storageDir: File? = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
     val imageFile = File.createTempFile(imageFileName, ".jpg", storageDir)
+    // The authority must match the one defined in the `provider` tag in AndroidManifest.xml.
     return FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile)
 }
 
+/**
+ * The main composable that builds the entire Book Shelf user interface.
+ * It manages all the state for the screen, including the book list, search query, delete mode,
+ * and dialogs for updating books and choosing image sources.
+ * @param modifier Modifier for this composable.
+ * @param userId The ID of the currently logged-in user, used for all database operations.
+ */
 @Composable
 fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
+    // --- State Management ---
     var searchQuery by remember { mutableStateOf("") }
-    var deleteMode by remember { mutableStateOf(false) }
-    var selectedBooks by remember { mutableStateOf(setOf<Int>()) }
-    var showDeleteConfirmation by remember { mutableStateOf(false) }
-    var bookToUpdate by remember { mutableStateOf<UserBook?>(null) }
-    var showImageSourceDialog by remember { mutableStateOf(false) }
+    var deleteMode by remember { mutableStateOf(false) } // Is the user currently deleting books?
+    var selectedBooks by remember { mutableStateOf(setOf<Int>()) } // Which books are selected for deletion?
+    var showDeleteConfirmation by remember { mutableStateOf(false) } // Show the delete confirmation dialog?
+    var bookToUpdate by remember { mutableStateOf<UserBook?>(null) } // The book currently being edited.
+    var showImageSourceDialog by remember { mutableStateOf(false) } // Show the Camera/Gallery choice dialog?
 
+    // --- Core Components ---
     val context = LocalContext.current
     val dbHelper = remember { UserBooksDatabaseHelper(context) }
     var allBooks by remember { mutableStateOf<List<UserBook>>(emptyList()) }
-    val coroutineScope = rememberCoroutineScope()
+    val coroutineScope = rememberCoroutineScope() // For launching database operations off the main thread.
 
+    /**
+     * Reloads the user's book list from the database.
+     * This function is called on initial load and after any add, update, or delete operation.
+     */
     fun refreshBookList() {
         coroutineScope.launch {
             val id = userId.toIntOrNull()
@@ -99,7 +127,11 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
         }
     }
 
-    // --- FIX: Rewrote URI handler to avoid type mismatch ---
+    // --- ActivityResult Launchers for Image Selection ---
+
+    /**
+     * A generic handler that takes a URI (from camera or gallery) and updates the book's cover in the database.
+     */
     val imageUpdateHandler = { uri: Uri? ->
         if (uri != null) {
             bookToUpdate?.let { book ->
@@ -107,27 +139,31 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                     val success = dbHelper.updateBookCover(book.bookId, uri.toString())
                     if (success) {
                         Toast.makeText(context, "Cover image updated!", Toast.LENGTH_SHORT).show()
-                        refreshBookList()
+                        refreshBookList() // Refresh the list to show the new image.
                     } else {
                         Toast.makeText(context, "Failed to update cover.", Toast.LENGTH_SHORT).show()
                     }
                 }
-                bookToUpdate = null // Close dialog
+                bookToUpdate = null // Close the update dialog.
             }
         }
     }
 
+    // Launcher for picking an image from the gallery.
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent(), imageUpdateHandler)
 
+    // Launcher for the camera app. It receives a boolean indicating if the photo was successfully saved.
     var tempImageUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
-            imageUpdateHandler(tempImageUri)
+            imageUpdateHandler(tempImageUri) // If successful, pass the URI to our handler.
         }
     }
 
+    // Launcher for requesting the CAMERA permission from the user.
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
+            // Permission was granted, now we can safely launch the camera.
             val newImageUri = createImageFile(context)
             tempImageUri = newImageUri
             cameraLauncher.launch(newImageUri)
@@ -136,10 +172,14 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
         }
     }
 
+    // --- Data Loading and UI Logic ---
+
+    // Load the initial book list when the screen is first composed.
     LaunchedEffect(key1 = userId) {
         refreshBookList()
     }
 
+    // Filter the displayed books based on the current search query.
     val filteredBooks = allBooks.filter {
         it.name.contains(searchQuery, true) ||
                 it.author.contains(searchQuery, true) ||
@@ -147,6 +187,9 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                 it.genre.contains(searchQuery, true)
     }
 
+    // --- Dialogs ---
+
+    // Confirmation dialog before deleting books.
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
@@ -157,6 +200,7 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                     coroutineScope.launch {
                         selectedBooks.forEach { bookId -> dbHelper.deleteBookFromLibrary(bookId) }
                         refreshBookList()
+                        // Reset all delete-related states.
                         selectedBooks = setOf()
                         deleteMode = false
                         showDeleteConfirmation = false
@@ -168,7 +212,7 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
         )
     }
 
-    // --- FIX: Explicitly name lambda variables to avoid scope issues ---
+    // The main dialog for updating a book's status or cover.
     bookToUpdate?.let { book ->
         UpdateBookDialog(
             book = book,
@@ -176,36 +220,39 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
             onStatusChange = { newStatus ->
                 coroutineScope.launch {
                     dbHelper.updateBookStatus(book.id, newStatus)
-                    refreshBookList()
+                    refreshBookList() // Refresh to show the new status.
                     Toast.makeText(context, "Status updated!", Toast.LENGTH_SHORT).show()
                 }
-                bookToUpdate = null
+                bookToUpdate = null // Close the dialog.
             },
-            onCoverChangeClick = { showImageSourceDialog = true }
+            onCoverChangeClick = { showImageSourceDialog = true } // Open the next dialog.
         )
     }
 
+    // The dialog for choosing between Camera and Gallery.
     if (showImageSourceDialog) {
         ImageSourceDialog(
             onDismiss = { showImageSourceDialog = false },
             onCameraClick = {
                 showImageSourceDialog = false
+                // Check for permission before launching the camera.
                 when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
                     PackageManager.PERMISSION_GRANTED -> {
                         val newImageUri = createImageFile(context)
                         tempImageUri = newImageUri
                         cameraLauncher.launch(newImageUri)
                     }
-                    else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA) // Request permission.
                 }
             },
             onGalleryClick = {
                 showImageSourceDialog = false
-                galleryLauncher.launch("image/*")
+                galleryLauncher.launch("image/*") // Launch gallery picker.
             }
         )
     }
 
+    // --- Main UI Layout ---
     Column(modifier = modifier.fillMaxSize()) {
         TopToolbar(
             deleteMode = deleteMode,
@@ -217,7 +264,7 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
             },
             onDeleteToggle = {
                 deleteMode = !deleteMode
-                if (!deleteMode) selectedBooks = setOf()
+                if (!deleteMode) selectedBooks = setOf() // Clear selections when exiting delete mode.
             },
             onConfirmDelete = { showDeleteConfirmation = true },
             onReturnClick = {
@@ -237,9 +284,11 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                     isSelected = book.id in selectedBooks,
                     onBookClick = {
                         if (deleteMode) {
+                            // In delete mode, clicking a book toggles its selection.
                             selectedBooks = if (book.id in selectedBooks) selectedBooks - book.id
                             else selectedBooks + book.id
                         } else {
+                            // In normal mode, clicking a book opens the update dialog.
                             bookToUpdate = book
                         }
                     }
@@ -249,6 +298,10 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
     }
 }
 
+/**
+ * The top toolbar that provides primary actions like adding, deleting, and returning.
+ * Its appearance changes based on whether the user is in `deleteMode`.
+ */
 @Composable
 fun TopToolbar(
     deleteMode: Boolean, hasBooks: Boolean, booksSelected: Boolean,
@@ -259,9 +312,11 @@ fun TopToolbar(
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
         if (deleteMode) {
+            // Delete mode UI
             Button(onClick = onDeleteToggle) { Text("Cancel") }
             Button(onClick = onConfirmDelete, enabled = booksSelected) { Text("Delete Selected") }
         } else {
+            // Normal mode UI
             Button(onClick = onAddClick) { Text("Add Book") }
             Button(onClick = onDeleteToggle, enabled = hasBooks) { Text("Delete") }
             Button(onClick = onReturnClick) { Text("Return") }
@@ -269,6 +324,9 @@ fun TopToolbar(
     }
 }
 
+/**
+ * A simple search bar for filtering the book list.
+ */
 @Composable
 fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
     TextField(
@@ -280,21 +338,31 @@ fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
     )
 }
 
+/**
+ * A single row in the book list. Displays the book's cover, details, and selection state.
+ */
 @Composable
 fun BookRow(book: UserBook, deleteMode: Boolean, isSelected: Boolean, onBookClick: () -> Unit) {
+    // Highlight the row if it's selected for deletion.
     val backgroundColor = if (isSelected) Color(0xFFD32F2F) else Color(0xFF0B3954)
     val context = LocalContext.current
 
+    // This state holds the loaded Bitmap for the book cover.
     var bookCoverBitmap by remember { mutableStateOf<Bitmap?>(null) }
+
+    // This effect loads the cover image from its URI asynchronously.
+    // It re-runs whenever the `book.coverUri` changes.
     LaunchedEffect(book.coverUri) {
-        book.coverUri?.let {
+        if (book.coverUri != null) {
             try {
-                val inputStream = context.contentResolver.openInputStream(Uri.parse(it))
+                val inputStream = context.contentResolver.openInputStream(Uri.parse(book.coverUri))
                 bookCoverBitmap = BitmapFactory.decodeStream(inputStream)
             } catch (e: Exception) {
                 e.printStackTrace()
-                bookCoverBitmap = null
+                bookCoverBitmap = null // Failed to load, clear the bitmap.
             }
+        } else {
+            bookCoverBitmap = null // Clear bitmap if URI is null
         }
     }
 
@@ -303,6 +371,7 @@ fun BookRow(book: UserBook, deleteMode: Boolean, isSelected: Boolean, onBookClic
             .clickable(onClick = onBookClick).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Display the loaded image, or a placeholder if it's null.
         bookCoverBitmap?.let {
             Image(
                 bitmap = it.asImageBitmap(),
@@ -323,12 +392,16 @@ fun BookRow(book: UserBook, deleteMode: Boolean, isSelected: Boolean, onBookClic
                 Text("Status: $it", color = Color(0xFF00BCD4), style = MaterialTheme.typography.bodySmall)
             }
         }
+        // Show a checkbox in delete mode.
         if (deleteMode) {
             Checkbox(checked = isSelected, onCheckedChange = { onBookClick() })
         }
     }
 }
 
+/**
+ * The dialog for updating a book's status or initiating a cover change.
+ */
 @Composable
 fun UpdateBookDialog(
     book: UserBook,
@@ -352,6 +425,7 @@ fun UpdateBookDialog(
                         statuses.forEach { status ->
                             DropdownMenuItem(text = { Text(status) }, onClick = { onStatusChange(status); expanded = false })
                         }
+                        // Option to clear the status.
                         DropdownMenuItem(text = { Text("Clear Status") }, onClick = { onStatusChange(null); expanded = false })
                     }
                 }
@@ -363,6 +437,9 @@ fun UpdateBookDialog(
     )
 }
 
+/**
+ * A simple dialog that presents the user with a choice between Camera and Gallery.
+ */
 @Composable
 fun ImageSourceDialog(
     onDismiss: () -> Unit,

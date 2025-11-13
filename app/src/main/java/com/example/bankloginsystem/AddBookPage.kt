@@ -38,6 +38,11 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+/**
+ * The AddBookPage activity allows users to add a new book to their collection.
+ * It provides a form for entering book details and for choosing a cover image from the
+ * camera or gallery. It includes runtime permission handling for the camera.
+ */
 class AddBookPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,19 +81,26 @@ private fun createImageFile(context: Context): Uri {
     )
 }
 
+/**
+ * The main composable for the Add Book screen UI.
+ * It manages the state for all input fields and handles the camera and gallery logic.
+ * @param context The activity context, used for launching other activities and showing Toasts.
+ */
 @Composable
 fun AddBookScreen(context: Context) {
     val dbHelper = remember { UserBooksDatabaseHelper(context) }
     val userSessionManager = remember { UserSessionManager(context) }
 
+    // --- State Management for Form Inputs ---
     var bookName by remember { mutableStateOf(TextFieldValue("")) }
     var authorName by remember { mutableStateOf(TextFieldValue("")) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var selectedGenre by remember { mutableStateOf<String?>(null) }
     var selectedStatus by remember { mutableStateOf<String?>(null) }
 
-    var coverImageUri by remember { mutableStateOf<Uri?>(null) }
-    var coverImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    // --- State Management for Image Handling ---
+    var coverImageUri by remember { mutableStateOf<Uri?>(null) } // Holds the URI from camera or gallery.
+    var coverImageBitmap by remember { mutableStateOf<Bitmap?>(null) } // Holds the loaded image for display.
 
     /**
      * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 1 ---
@@ -107,10 +119,11 @@ fun AddBookScreen(context: Context) {
                 Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
             }
         } else {
-            coverImageBitmap = null
+            coverImageBitmap = null // Clear the image if the URI is null.
         }
     }
 
+    // --- Data for Dropdown Menus ---
     val categories = listOf(
         "FICTION", "NON-FICTION", "POETRY", "DRAMA / PLAYS",
         "COMICS / GRAPHIC NOVELS", "CHILDREN’S BOOKS", "YOUNG ADULT (YA)"
@@ -126,7 +139,9 @@ fun AddBookScreen(context: Context) {
     )
     val statuses = listOf("Currently Reading", "Completed", "Paused", "Dropped", "Plan to Read")
 
+    // --- ActivityResult Launchers for Camera and Gallery ---
     var tempImageUri by remember { mutableStateOf<Uri?>(null) }
+
     /**
      * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 2 ---
      * This is the launcher for the camera app. Its job is to take a URI we provide,
@@ -170,6 +185,7 @@ fun AddBookScreen(context: Context) {
         coverImageUri = uri
     }
 
+    // --- Main UI Layout ---
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -184,6 +200,7 @@ fun AddBookScreen(context: Context) {
         OutlinedTextField(value = bookName, onValueChange = { bookName = it }, label = { Text("Book Name") }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = authorName, onValueChange = { authorName = it }, label = { Text("Author Name") }, modifier = Modifier.fillMaxWidth())
 
+        // --- Dropdown Menus for Category, Genre, and Status ---
         var categoryExpanded by remember { mutableStateOf(false) }
         Box {
             Button(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedCategory ?: "Select Category") }
@@ -215,6 +232,7 @@ fun AddBookScreen(context: Context) {
             }
         }
 
+        // --- Image Selection Section ---
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Insert Cover Image")
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -244,6 +262,8 @@ fun AddBookScreen(context: Context) {
             }
         }
 
+        // --- Image Preview ---
+        // Displays the selected image if one has been loaded into the Bitmap state.
         coverImageBitmap?.let {
             Image(
                 bitmap = it.asImageBitmap(),
@@ -252,8 +272,10 @@ fun AddBookScreen(context: Context) {
             )
         }
 
+        // --- Action Buttons ---
         Button(
             onClick = {
+                // Basic form validation.
                 if (bookName.text.isEmpty() || authorName.text.isEmpty() || selectedCategory == null || selectedGenre == null) {
                     Toast.makeText(context, "Please fill all required fields", Toast.LENGTH_SHORT).show()
                 } else {
@@ -270,6 +292,7 @@ fun AddBookScreen(context: Context) {
 
                     if (result) {
                         Toast.makeText(context, "Book added successfully!", Toast.LENGTH_SHORT).show()
+                        // Navigate back to the bookshelf to see the new book.
                         val intent = Intent(context, BookShelfPage::class.java)
                         intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
                         context.startActivity(intent)
@@ -285,6 +308,7 @@ fun AddBookScreen(context: Context) {
 
         OutlinedButton(
             onClick = {
+                // Simply finish the activity to return to the previous screen (BookShelfPage).
                 (context as? Activity)?.finish()
             },
             modifier = Modifier.fillMaxWidth()
