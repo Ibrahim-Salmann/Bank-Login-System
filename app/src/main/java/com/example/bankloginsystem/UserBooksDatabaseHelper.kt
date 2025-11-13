@@ -1,5 +1,6 @@
 package com.example.bankloginsystem
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
@@ -80,6 +81,7 @@ class UserBooksDatabaseHelper(context: Context)
     }
 
     //  Insert a book for a user
+    @SuppressLint("UseKtx")
     fun insertUserBook(
         userId: Int,
         name: String,

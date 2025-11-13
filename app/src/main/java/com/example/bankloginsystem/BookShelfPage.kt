@@ -1,6 +1,7 @@
 package com.example.bankloginsystem
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -341,6 +342,7 @@ fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
 /**
  * A single row in the book list. Displays the book's cover, details, and selection state.
  */
+@SuppressLint("UseKtx")
 @Composable
 fun BookRow(book: UserBook, deleteMode: Boolean, isSelected: Boolean, onBookClick: () -> Unit) {
     // Highlight the row if it's selected for deletion.
