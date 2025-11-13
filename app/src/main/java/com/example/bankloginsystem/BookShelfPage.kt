@@ -1,14 +1,22 @@
 package com.example.bankloginsystem
 
+import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,15 +27,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
-import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.launch
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
 
 class BookShelfPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,14 +68,22 @@ class BookShelfPage : ComponentActivity() {
     }
 }
 
+private fun createImageFile(context: Context): Uri {
+    val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    val imageFileName = "JPEG_${timeStamp}_"
+    val storageDir: File? = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
+    val imageFile = File.createTempFile(imageFileName, ".jpg", storageDir)
+    return FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile)
+}
+
 @Composable
 fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
     var searchQuery by remember { mutableStateOf("") }
     var deleteMode by remember { mutableStateOf(false) }
     var selectedBooks by remember { mutableStateOf(setOf<Int>()) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
-    // --- IMPLEMENTATION: State to hold the book being updated ---
     var bookToUpdate by remember { mutableStateOf<UserBook?>(null) }
+    var showImageSourceDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val dbHelper = remember { UserBooksDatabaseHelper(context) }
@@ -77,12 +99,12 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
         }
     }
 
-    // --- IMPLEMENTATION: Launcher for selecting a new cover image ---
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { newCoverUri ->
+    // --- FIX: Rewrote URI handler to avoid type mismatch ---
+    val imageUpdateHandler = { uri: Uri? ->
+        if (uri != null) {
             bookToUpdate?.let { book ->
                 coroutineScope.launch {
-                    val success = dbHelper.updateBookCover(book.bookId, newCoverUri.toString())
+                    val success = dbHelper.updateBookCover(book.bookId, uri.toString())
                     if (success) {
                         Toast.makeText(context, "Cover image updated!", Toast.LENGTH_SHORT).show()
                         refreshBookList()
@@ -92,6 +114,25 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                 }
                 bookToUpdate = null // Close dialog
             }
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent(), imageUpdateHandler)
+
+    var tempImageUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success) {
+            imageUpdateHandler(tempImageUri)
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (isGranted) {
+            val newImageUri = createImageFile(context)
+            tempImageUri = newImageUri
+            cameraLauncher.launch(newImageUri)
+        } else {
+            Toast.makeText(context, "Camera permission is required.", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -110,30 +151,24 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
             title = { Text("Confirm Deletion") },
-            text = { Text("Are you sure you want to delete ${selectedBooks.size} book(s)? This action cannot be undone.") },
+            text = { Text("Are you sure you want to delete ${selectedBooks.size} book(s)?") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            selectedBooks.forEach { bookId ->
-                                dbHelper.deleteBookFromLibrary(bookId)
-                            }
-                            refreshBookList()
-                            selectedBooks = setOf()
-                            deleteMode = false
-                            showDeleteConfirmation = false
-                            Toast.makeText(context, "Book(s) deleted.", Toast.LENGTH_SHORT).show()
-                        }
+                Button(onClick = {
+                    coroutineScope.launch {
+                        selectedBooks.forEach { bookId -> dbHelper.deleteBookFromLibrary(bookId) }
+                        refreshBookList()
+                        selectedBooks = setOf()
+                        deleteMode = false
+                        showDeleteConfirmation = false
+                        Toast.makeText(context, "Book(s) deleted.", Toast.LENGTH_SHORT).show()
                     }
-                ) { Text("Delete") }
+                }) { Text("Delete") }
             },
-            dismissButton = {
-                Button(onClick = { showDeleteConfirmation = false }) { Text("Cancel") }
-            }
+            dismissButton = { Button(onClick = { showDeleteConfirmation = false }) { Text("Cancel") } }
         )
     }
 
-    // --- IMPLEMENTATION: Show the Update Book Dialog ---
+    // --- FIX: Explicitly name lambda variables to avoid scope issues ---
     bookToUpdate?.let { book ->
         UpdateBookDialog(
             book = book,
@@ -144,9 +179,28 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                     refreshBookList()
                     Toast.makeText(context, "Status updated!", Toast.LENGTH_SHORT).show()
                 }
-                bookToUpdate = null // Close dialog
+                bookToUpdate = null
             },
-            onCoverChangeClick = {
+            onCoverChangeClick = { showImageSourceDialog = true }
+        )
+    }
+
+    if (showImageSourceDialog) {
+        ImageSourceDialog(
+            onDismiss = { showImageSourceDialog = false },
+            onCameraClick = {
+                showImageSourceDialog = false
+                when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
+                    PackageManager.PERMISSION_GRANTED -> {
+                        val newImageUri = createImageFile(context)
+                        tempImageUri = newImageUri
+                        cameraLauncher.launch(newImageUri)
+                    }
+                    else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
+            },
+            onGalleryClick = {
+                showImageSourceDialog = false
                 galleryLauncher.launch("image/*")
             }
         )
@@ -163,9 +217,7 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
             },
             onDeleteToggle = {
                 deleteMode = !deleteMode
-                if (!deleteMode) {
-                    selectedBooks = setOf() 
-                }
+                if (!deleteMode) selectedBooks = setOf()
             },
             onConfirmDelete = { showDeleteConfirmation = true },
             onReturnClick = {
@@ -185,13 +237,9 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                     isSelected = book.id in selectedBooks,
                     onBookClick = {
                         if (deleteMode) {
-                            selectedBooks = if (book.id in selectedBooks) {
-                                selectedBooks - book.id
-                            } else {
-                                selectedBooks + book.id
-                            }
+                            selectedBooks = if (book.id in selectedBooks) selectedBooks - book.id
+                            else selectedBooks + book.id
                         } else {
-                            // --- IMPLEMENTATION: Set the book to be updated, which triggers the dialog ---
                             bookToUpdate = book
                         }
                     }
@@ -235,16 +283,42 @@ fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
 @Composable
 fun BookRow(book: UserBook, deleteMode: Boolean, isSelected: Boolean, onBookClick: () -> Unit) {
     val backgroundColor = if (isSelected) Color(0xFFD32F2F) else Color(0xFF0B3954)
+    val context = LocalContext.current
+
+    var bookCoverBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(book.coverUri) {
+        book.coverUri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(Uri.parse(it))
+                bookCoverBitmap = BitmapFactory.decodeStream(inputStream)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                bookCoverBitmap = null
+            }
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp).background(backgroundColor)
             .clickable(onClick = onBookClick).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        bookCoverBitmap?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = "Book Cover",
+                modifier = Modifier.size(60.dp, 90.dp)
+            )
+        } ?: Box(modifier = Modifier.size(60.dp, 90.dp), contentAlignment = Alignment.Center) {
+            Text("📘", fontSize = MaterialTheme.typography.headlineSmall.fontSize)
+        }
+
+        Spacer(Modifier.width(16.dp))
+
         Column(Modifier.weight(1f)) {
             Text(book.name, color = Color.White, fontWeight = FontWeight.Bold)
             Text("By ${book.author}", color = Color.LightGray)
             Text("${book.category} • ${book.genre}", color = Color.Gray)
-            // --- IMPLEMENTATION: Display the book's status ---
             book.status?.let {
                 Text("Status: $it", color = Color(0xFF00BCD4), style = MaterialTheme.typography.bodySmall)
             }
@@ -252,11 +326,9 @@ fun BookRow(book: UserBook, deleteMode: Boolean, isSelected: Boolean, onBookClic
         if (deleteMode) {
             Checkbox(checked = isSelected, onCheckedChange = { onBookClick() })
         }
-        Text("📘", fontSize = MaterialTheme.typography.headlineSmall.fontSize)
     }
 }
 
-// --- IMPLEMENTATION: A dialog for updating book status and cover ---
 @Composable
 fun UpdateBookDialog(
     book: UserBook,
@@ -274,7 +346,6 @@ fun UpdateBookDialog(
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text("Current status: ${book.status ?: "None"}")
                 Spacer(modifier = Modifier.height(16.dp))
-
                 Box {
                     Button(onClick = { expanded = true }) { Text("Change Status") }
                     DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
@@ -284,16 +355,34 @@ fun UpdateBookDialog(
                         DropdownMenuItem(text = { Text("Clear Status") }, onClick = { onStatusChange(null); expanded = false })
                     }
                 }
-
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = onCoverChangeClick) { Text("Change Cover Image") }
             }
         },
-        confirmButton = {
-            Button(onClick = onDismiss) { Text("Close") }
-        }
+        confirmButton = { Button(onClick = onDismiss) { Text("Close") } }
     )
 }
+
+@Composable
+fun ImageSourceDialog(
+    onDismiss: () -> Unit,
+    onCameraClick: () -> Unit,
+    onGalleryClick: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Change Cover Image") },
+        text = { Text("Choose an image source:") },
+        confirmButton = {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Button(onClick = onCameraClick) { Text("Camera") }
+                Button(onClick = onGalleryClick) { Text("Gallery") }
+            }
+        },
+        dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
 
 @Preview(showBackground = true)
 @Composable
