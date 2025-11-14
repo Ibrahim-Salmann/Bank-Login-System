@@ -264,9 +264,10 @@ fun HomeScreen(modifier: Modifier = Modifier) {
 //                        Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
 //                        val intent = Intent(context, WelcomePage::class.java)
 //                        context.startActivity(intent)
-                    } else {
-                        Toast.makeText(context, "Invalid email or password", Toast.LENGTH_SHORT).show()
                     }
+//                    else {
+//                        Toast.makeText(context, "Invalid email or password", Toast.LENGTH_SHORT).show()
+//                    }
                 }, modifier = Modifier.weight(1f))
                 // finishAffinity() ensures the backstack is cleared, while System.exit(0) stops the app process.
                 ButtonClicked("Exit", {
