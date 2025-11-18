@@ -10,7 +10,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,9 +18,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -32,8 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -42,7 +39,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
-import kotlin.jvm.java
+import com.example.bankloginsystem.ui.theme.ScanLines
 import kotlin.system.exitProcess
 
 class LoginPage : ComponentActivity() {
@@ -75,25 +72,12 @@ class LoginPage : ComponentActivity() {
 
 @Composable
 fun EmailInput(email: String, onEmailChange: (String) -> Unit, modifier: Modifier = Modifier) {
-//    var input by remember { mutableStateOf("") }
-    Box(
-        modifier = modifier
-            // Clip the shape of the Box to have rounded corners
-            .clip(RoundedCornerShape(12.dp))
-            // Set the background color of the Box
-            .background(Color(0xFFFFC107))
-            // Apply padding around the content inside the Box
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        // Align the content within the Box to the center
-        contentAlignment = Alignment.Center
-    ) {
-        OutlinedTextField(
-            value = email,
-            onValueChange = onEmailChange,
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
+    OutlinedTextField(
+        value = email,
+        onValueChange = onEmailChange,
+        label = { Text("Email") },
+        modifier = modifier.fillMaxWidth()
+    )
 }
 
 
@@ -105,42 +89,34 @@ fun PasswordInput(
 ) {
     var passwordVisible by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFFFC107))
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        OutlinedTextField(
-            value = password,
-            onValueChange = onPasswordChange,
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth(),
-            visualTransformation = if (passwordVisible)
-                VisualTransformation.None
-            else
-                PasswordVisualTransformation(),
-            trailingIcon = {
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Image(
-                        painter = painterResource(
-                            id = if (passwordVisible)
-                                R.drawable.ic_visibility_off
-                            else
-                                R.drawable.ic_visibility
-                        ),
-                        contentDescription = if (passwordVisible)
-                            "Hide password"
+    OutlinedTextField(
+        value = password,
+        onValueChange = onPasswordChange,
+        label = { Text("Password") },
+        modifier = modifier.fillMaxWidth(),
+        visualTransformation = if (passwordVisible)
+            VisualTransformation.None
+        else
+            PasswordVisualTransformation(),
+        trailingIcon = {
+            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                Image(
+                    painter = painterResource(
+                        id = if (passwordVisible)
+                            R.drawable.ic_visibility_off
                         else
-                            "Show password",
-                        modifier = Modifier.size(24.dp),
-                        colorFilter = ColorFilter.tint(Color.Black)
-                    )
-                }
+                            R.drawable.ic_visibility
+                    ),
+                    contentDescription = if (passwordVisible)
+                        "Hide password"
+                    else
+                        "Show password",
+                    modifier = Modifier.size(24.dp),
+                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary)
+                )
             }
-        )
-    }
+        }
+    )
 }
 
 
@@ -210,9 +186,10 @@ fun HomeScreen(modifier: Modifier = Modifier) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val userSessionManager = UserSessionManager(context)
-    Scaffold { it ->
+    Box(modifier = modifier.fillMaxSize()) {
+        ScanLines()
         Column(
-            modifier = modifier.padding(it),
+            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

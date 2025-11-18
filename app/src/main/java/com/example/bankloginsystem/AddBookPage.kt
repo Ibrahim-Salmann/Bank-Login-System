@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
+import com.example.bankloginsystem.ui.theme.ScanLines
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -186,134 +187,143 @@ fun AddBookScreen(context: Context) {
     }
 
     // --- Main UI Layout ---
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
-            .background(Color(0xFFEEEEEE)),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Add a New Book", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineMedium)
-
-        OutlinedTextField(value = bookName, onValueChange = { bookName = it }, label = { Text("Book Name") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = authorName, onValueChange = { authorName = it }, label = { Text("Author Name") }, modifier = Modifier.fillMaxWidth())
-
-        // --- Dropdown Menus for Category, Genre, and Status ---
-        var categoryExpanded by remember { mutableStateOf(false) }
-        Box {
-            Button(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedCategory ?: "Select Category") }
-            DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
-                categories.forEach { category ->
-                    DropdownMenuItem(text = { Text(category) }, onClick = { selectedCategory = category; selectedGenre = null; categoryExpanded = false })
-                }
-            }
-        }
-
-        val genres = genreMap[selectedCategory] ?: emptyList()
-        var genreExpanded by remember { mutableStateOf(false) }
-        Box {
-            Button(onClick = { if (selectedCategory != null) genreExpanded = true }, modifier = Modifier.fillMaxWidth(), enabled = selectedCategory != null) { Text(selectedGenre ?: "Select Genre") }
-            DropdownMenu(expanded = genreExpanded, onDismissRequest = { genreExpanded = false }) {
-                genres.forEach { genre ->
-                    DropdownMenuItem(text = { Text(genre) }, onClick = { selectedGenre = genre; genreExpanded = false })
-                }
-            }
-        }
-
-        var statusExpanded by remember { mutableStateOf(false) }
-        Box {
-            Button(onClick = { statusExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedStatus ?: "Set Initial Status (Optional)") }
-            DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
-                statuses.forEach { status ->
-                    DropdownMenuItem(text = { Text(status) }, onClick = { selectedStatus = status; statusExpanded = false })
-                }
-            }
-        }
-
-        // --- Image Selection Section ---
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Insert Cover Image")
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                /**
-                 * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 5 (The Final Step) ---
-                 * This is where everything comes together. When the Camera button is clicked:
-                 */
-                Button(onClick = {
-                    // 1. We check if we ALREADY have camera permission.
-                    when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
-                        PackageManager.PERMISSION_GRANTED -> {
-                            // 2a. If permission is granted, we launch the camera directly.
-                            val newImageUri = createImageFile(context)
-                            tempImageUri = newImageUri
-                            cameraLauncher.launch(newImageUri)
-                        }
-                        else -> {
-                            // 2b. If permission is NOT granted, we launch the permission request launcher.
-                            //    The result of this request will be handled in Part 3.
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    }
-                }) { Text("📷 Camera") }
-
-                // The gallery button is simpler; it just launches the gallery picker.
-                Button(onClick = { galleryLauncher.launch("image/*") }) { Text("🖼 Gallery") }
-            }
-        }
-
-        // --- Image Preview ---
-        // Displays the selected image if one has been loaded into the Bitmap state.
-        coverImageBitmap?.let {
-            Image(
-                bitmap = it.asImageBitmap(),
-                contentDescription = "Cover Preview",
-                modifier = Modifier.size(150.dp)
-            )
-        }
-
-        // --- Action Buttons ---
-        Button(
-            onClick = {
-                // Basic form validation.
-                if (bookName.text.isEmpty() || authorName.text.isEmpty() || selectedCategory == null || selectedGenre == null) {
-                    Toast.makeText(context, "Please fill all required fields", Toast.LENGTH_SHORT).show()
-                } else {
-                    val userId = userSessionManager.getUserDetails()[UserSessionManager.PREF_USER_ID]
-                    val result = dbHelper.insertUserBook(
-                        userId = userId!!.toInt(),
-                        name = bookName.text,
-                        author = authorName.text,
-                        category = selectedCategory!!,
-                        genre = selectedGenre!!,
-                        coverUri = coverImageUri?.toString(),
-                        status = selectedStatus
-                    )
-
-                    if (result) {
-                        Toast.makeText(context, "Book added successfully!", Toast.LENGTH_SHORT).show()
-                        // Navigate back to the bookshelf to see the new book.
-                        val intent = Intent(context, BookShelfPage::class.java)
-                        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK
-                        context.startActivity(intent)
-                        (context as? Activity)?.finish()
-                    } else {
-                        Toast.makeText(context, "Error adding book. It may already be in your library.", Toast.LENGTH_LONG).show()
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A5E2A))
-        ) { Text("Submit", color = Color.White) }
-
-        OutlinedButton(
-            onClick = {
-                // Simply finish the activity to return to the previous screen (BookShelfPage).
-                (context as? Activity)?.finish()
-            },
-            modifier = Modifier.fillMaxWidth()
+    Box(modifier = Modifier.fillMaxSize()) {
+        ScanLines()
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Cancel")
+            Text("Add a New Book", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineMedium)
+
+            OutlinedTextField(value = bookName, onValueChange = { bookName = it }, label = { Text("Book Name") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = authorName, onValueChange = { authorName = it }, label = { Text("Author Name") }, modifier = Modifier.fillMaxWidth())
+
+            // --- Dropdown Menus for Category, Genre, and Status ---
+            var categoryExpanded by remember { mutableStateOf(false) }
+            Box {
+                Button(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedCategory ?: "Select Category") }
+                DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                    categories.forEach { category ->
+                        DropdownMenuItem(text = { Text(category) }, onClick = { selectedCategory = category; selectedGenre = null; categoryExpanded = false })
+                    }
+                }
+            }
+
+            val genres = genreMap[selectedCategory] ?: emptyList()
+            var genreExpanded by remember { mutableStateOf(false) }
+            Box {
+                Button(onClick = { if (selectedCategory != null) genreExpanded = true }, modifier = Modifier.fillMaxWidth(), enabled = selectedCategory != null) { Text(selectedGenre ?: "Select Genre") }
+                DropdownMenu(expanded = genreExpanded, onDismissRequest = { genreExpanded = false }) {
+                    genres.forEach { genre ->
+                        DropdownMenuItem(text = { Text(genre) }, onClick = { selectedGenre = genre; genreExpanded = false })
+                    }
+                }
+            }
+
+            var statusExpanded by remember { mutableStateOf(false) }
+            Box {
+                Button(onClick = { statusExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedStatus ?: "Set Initial Status (Optional)") }
+                DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                    statuses.forEach { status ->
+                        DropdownMenuItem(text = { Text(status) }, onClick = { selectedStatus = status; statusExpanded = false })
+                    }
+                }
+            }
+
+            // --- Image Selection Section ---
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Insert Cover Image")
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    /**
+                     * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 5 (The Final Step) ---
+                     * This is where everything comes together. When the Camera button is clicked:
+                     */
+                    Button(onClick = {
+                        // 1. Check if we already have the CAMERA permission.
+                        when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
+                            PackageManager.PERMISSION_GRANTED -> {
+                                // 2. If permission is already granted, create a file and launch the camera directly.
+                                val newImageUri = createImageFile(context)
+                                tempImageUri = newImageUri
+                                cameraLauncher.launch(newImageUri)
+                            }
+                            else -> {
+                                // 3. If permission is NOT granted, launch the permission request launcher.
+                                //    The result of this request will be handled by `cameraPermissionLauncher`.
+                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                            }
+                        }
+                    }) { Text("Camera") }
+                    Button(onClick = { galleryLauncher.launch("image/*") }) { Text("Gallery") }
+                }
+
+                if (coverImageBitmap != null) {
+                    Image(
+                        bitmap = coverImageBitmap!!
+                            .asImageBitmap(),
+                        contentDescription = "Book Cover",
+                        modifier = Modifier
+                            .height(200.dp)
+                            .padding(top = 16.dp)
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .height(200.dp)
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                            .background(Color.Gray.copy(alpha = 0.3f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Cover Image Preview")
+                    }
+                }
+            }
+
+            // --- Submission and Navigation ---
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Button(onClick = {
+                    val name = bookName.text
+                    val author = authorName.text
+                    val category = selectedCategory
+                    val genre = selectedGenre
+                    val status = selectedStatus
+                    val coverUriString = coverImageUri?.toString() ?: ""
+
+                    if (name.isBlank() || author.isBlank() || category.isNullOrBlank() || genre.isNullOrBlank()) {
+                        Toast.makeText(context, "Please fill out all required fields.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    val userDetails = userSessionManager.getUserDetails()
+                    val userId = userDetails[UserSessionManager.PREF_USER_ID]?.toIntOrNull()
+
+                    if (userId == null) {
+                        Toast.makeText(context, "Error: Could not identify user.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    val success = dbHelper.insertUserBook(userId, name, author, category, genre, coverUriString, status)
+                    if (success) {
+                        Toast.makeText(context, "Book added successfully!", Toast.LENGTH_SHORT).show()
+                        val intent = Intent(context, BookShelfPage::class.java)
+                        context.startActivity(intent)
+                        (context as? Activity)?.finish() // Finish this screen
+                    } else {
+                        Toast.makeText(context, "Failed to add book.", Toast.LENGTH_SHORT).show()
+                    }
+                }) { Text("Add Book") }
+
+                Button(onClick = {
+                    val intent = Intent(context, BookShelfPage::class.java)
+                    context.startActivity(intent)
+                    (context as? Activity)?.finish() // Finish this screen without saving
+                }) { Text("Cancel") }
+            }
         }
     }
 }
@@ -321,7 +331,5 @@ fun AddBookScreen(context: Context) {
 @Preview(showBackground = true)
 @Composable
 fun AddBookScreenPreview() {
-    BankLoginSystemTheme {
-        AddBookScreen(context = LocalContext.current)
-    }
+    AddBookScreen(context = LocalContext.current)
 }

@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,10 +40,11 @@ import android.database.sqlite.SQLiteDatabase // using SQLite to store user data
 import android.database.sqlite.SQLiteOpenHelper
 import android.widget.Toast
 import androidx.compose.ui.text.input.VisualTransformation
-import java.security.MessageDigest // For 'HASHing values of password
+import java.security.MessageDigest // For '''HASHing values of password
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
+import com.example.bankloginsystem.ui.theme.ScanLines
 
 /**
  * The SignUpPage activity hosts the user registration screen.
@@ -106,193 +108,196 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
     val confirmPasswordVisible = remember { mutableStateOf(false) }
 
 
-    // The main layout is a scrollable Column to accommodate all input fields on any screen size.
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = "Create Account", style = MaterialTheme.typography.headlineMedium)
+    Box(modifier = modifier.fillMaxSize()) {
+        ScanLines()
+        // The main layout is a scrollable Column to accommodate all input fields on any screen size.
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(text = "Create Account", style = MaterialTheme.typography.headlineMedium)
 
-        Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-        // --- First Name ---
-        OutlinedTextField(value = firstName.value, onValueChange = { firstName.value = it; firstNameError.value = "" }, label = { Text(text = "First Name") }, isError = firstNameError.value.isNotEmpty())
-        if (firstNameError.value.isNotEmpty()) Text(firstNameError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            // --- First Name ---
+            OutlinedTextField(value = firstName.value, onValueChange = { firstName.value = it; firstNameError.value = "" }, label = { Text(text = "First Name") }, isError = firstNameError.value.isNotEmpty())
+            if (firstNameError.value.isNotEmpty()) Text(firstNameError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        // --- Last Name ---
-        OutlinedTextField(value = lastName.value, onValueChange = { lastName.value = it; lastNameError.value = "" }, label = { Text(text = "Last Name") }, isError = lastNameError.value.isNotEmpty())
-        if (lastNameError.value.isNotEmpty()) Text(lastNameError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            // --- Last Name ---
+            OutlinedTextField(value = lastName.value, onValueChange = { lastName.value = it; lastNameError.value = "" }, label = { Text(text = "Last Name") }, isError = lastNameError.value.isNotEmpty())
+            if (lastNameError.value.isNotEmpty()) Text(lastNameError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        // --- Gender Selection ---
-        GenderSelection(selectedOption = gender.value, onOptionSelected = { gender.value = it; genderError.value = "" })
-        if (genderError.value.isNotEmpty()) Text(genderError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            // --- Gender Selection ---
+            GenderSelection(selectedOption = gender.value, onOptionSelected = { gender.value = it; genderError.value = "" })
+            if (genderError.value.isNotEmpty()) Text(genderError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        // --- Email ---
-        OutlinedTextField(value = email.value, onValueChange = { email.value = it; emailError.value = "" }, label = { Text(text = "Email") }, isError = emailError.value.isNotEmpty())
-        if (emailError.value.isNotEmpty()) Text(emailError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            // --- Email ---
+            OutlinedTextField(value = email.value, onValueChange = { email.value = it; emailError.value = "" }, label = { Text(text = "Email") }, isError = emailError.value.isNotEmpty())
+            if (emailError.value.isNotEmpty()) Text(emailError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        // Password field with "Show/Hide"
-        OutlinedTextField(
-            value = password.value,
-            onValueChange = { password.value = it; passwordError.value = ""},
-            label = { Text("Password") },
-            isError = passwordError.value.isNotEmpty(),
-            visualTransformation = if (passwordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                TextButton(onClick = { passwordVisible.value = !passwordVisible.value }) {
-                    Text(if (passwordVisible.value) "Hide" else "Show")
+            // Password field with "Show/Hide"
+            OutlinedTextField(
+                value = password.value,
+                onValueChange = { password.value = it; passwordError.value = ""},
+                label = { Text("Password") },
+                isError = passwordError.value.isNotEmpty(),
+                visualTransformation = if (passwordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    TextButton(onClick = { passwordVisible.value = !passwordVisible.value }) {
+                        Text(if (passwordVisible.value) "Hide" else "Show")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (passwordError.value.isEmpty()) Text( passwordError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Confirm Password field with "Show/Hide"
+            OutlinedTextField(
+                value = confirmPassword.value,
+                onValueChange = { confirmPassword.value = it; confirmError.value = "" },
+                label = { Text("Confirm Password") },
+                isError = confirmError.value.isNotEmpty(),
+                visualTransformation = if (confirmPasswordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    TextButton(onClick = { confirmPasswordVisible.value = !confirmPasswordVisible.value }) {
+                        Text(if (confirmPasswordVisible.value) "Hide" else "Show")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (confirmError.value.isNotEmpty()) Text(confirmError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // --- Phone Number ---
+            OutlinedTextField(value = phoneNumber.value, onValueChange = { newText -> phoneNumber.value = newText.filter { it.isDigit() }; phoneError.value = "" },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                label = { Text("Phone Number") }, isError = phoneError.value.isNotEmpty())
+            if (phoneError.value.isNotEmpty()) Text(phoneError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // The Button for submitting the form
+            Button(onClick = {
+                // This flag tracks if any validation check has failed.
+                var validationFailed = false
+
+                val fName = firstName.value.trim()
+                val lName = lastName.value.trim()
+                val gChoice = gender.value.trim()
+                val mail = email.value.trim()
+                val pass = password.value
+                val conf = confirmPassword.value
+                val phone = phoneNumber.value.trim()
+
+                // --- Start Validation: Replaced Toasts with inline error states ---
+                // Each validation now sets a specific error message on failure,
+                // which is displayed below the corresponding input field.
+                if (fName.isEmpty()) {
+                    firstNameError.value = "First name is required"
+                    validationFailed = true
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (passwordError.value.isEmpty()) Text( passwordError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Confirm Password field with "Show/Hide"
-        OutlinedTextField(
-            value = confirmPassword.value,
-            onValueChange = { confirmPassword.value = it; confirmError.value = "" },
-            label = { Text("Confirm Password") },
-            isError = confirmError.value.isNotEmpty(),
-            visualTransformation = if (confirmPasswordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                TextButton(onClick = { confirmPasswordVisible.value = !confirmPasswordVisible.value }) {
-                    Text(if (confirmPasswordVisible.value) "Hide" else "Show")
+                if (lName.isEmpty()) {
+                    lastNameError.value = "Last name is required"
+                    validationFailed = true
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
-        if (confirmError.value.isNotEmpty()) Text(confirmError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
+                if (gChoice.isEmpty()) {
+                    genderError.value = "Please select a gender"
+                    validationFailed = true
+                }
 
-        Spacer(modifier = Modifier.height(12.dp))
+                if (mail.isEmpty()) {
+                    emailError.value = "Email is required"
+                    validationFailed = true
+                } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(mail).matches()) {
+                    emailError.value = "Please enter a valid email address"
+                    validationFailed = true
+                }
 
-        // --- Phone Number ---
-        OutlinedTextField(value = phoneNumber.value, onValueChange = { newText -> phoneNumber.value = newText.filter { it.isDigit() }; phoneError.value = "" },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-            label = { Text("Phone Number") }, isError = phoneError.value.isNotEmpty())
-        if (phoneError.value.isNotEmpty()) Text(phoneError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                if (pass.isEmpty()) {
+                    passwordError.value = "Password is required"
+                    validationFailed = true
+                } else if (pass.length <= 9) {
+                    passwordError.value = "Password must be at least 9 characters long"
+                    validationFailed = true
+                }
 
-        Spacer(modifier = Modifier.height(16.dp))
+                if (conf.isEmpty()) {
+                    confirmError.value = "Please confirm your password"
+                    validationFailed = true
+                } else if (pass != conf) {
+                    confirmError.value = "Passwords do not match"
+                    validationFailed = true
+                }
 
-        // The Button for submitting the form
-        Button(onClick = {
-            // This flag tracks if any validation check has failed.
-            var validationFailed = false
+                if (phone.isEmpty()) {
+                    phoneError.value = "Phone number is required"
+                    validationFailed = true
+                } else if (phone.length !in 11..<14) {
+                    phoneError.value = "Please enter a valid phone number (10–13 digits)"
+                    validationFailed = true
+                }
 
-            val fName = firstName.value.trim()
-            val lName = lastName.value.trim()
-            val gChoice = gender.value.trim()
-            val mail = email.value.trim()
-            val pass = password.value
-            val conf = confirmPassword.value
-            val phone = phoneNumber.value.trim()
-
-            // --- Start Validation: Replaced Toasts with inline error states ---
-            // Each validation now sets a specific error message on failure,
-            // which is displayed below the corresponding input field.
-            if (fName.isEmpty()) {
-                firstNameError.value = "First name is required"
-                validationFailed = true
-            }
-
-            if (lName.isEmpty()) {
-                lastNameError.value = "Last name is required"
-                validationFailed = true
-            }
-
-            if (gChoice.isEmpty()) {
-                genderError.value = "Please select a gender"
-                validationFailed = true
-            }
-
-            if (mail.isEmpty()) {
-                emailError.value = "Email is required"
-                validationFailed = true
-            } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(mail).matches()) {
-                emailError.value = "Please enter a valid email address"
-                validationFailed = true
-            }
-
-            if (pass.isEmpty()) {
-                passwordError.value = "Password is required"
-                validationFailed = true
-            } else if (pass.length <= 9) {
-                passwordError.value = "Password must be at least 9 characters long"
-                validationFailed = true
-            }
-
-            if (conf.isEmpty()) {
-                confirmError.value = "Please confirm your password"
-                validationFailed = true
-            } else if (pass != conf) {
-                confirmError.value = "Passwords do not match"
-                validationFailed = true
-            }
-
-            if (phone.isEmpty()) {
-                phoneError.value = "Phone number is required"
-                validationFailed = true
-            } else if (phone.length !in 11..<14) {
-                phoneError.value = "Please enter a valid phone number (10–13 digits)"
-                validationFailed = true
-            }
-
-            // If any validation failed, stop the submission process.
-            if (validationFailed) return@Button
-            // --- End Validation ---
-
-            /**
-             * This is where the SQLite database is used for internal storage.
-             * A new instance of DatabaseHelper is created, and the userExists and insertUser methods are called.
-             * This is how the app interacts with the database to store and retrieve user data.
-             */
-            val dbHelper = DatabaseHelper(context)
-            // Check for existing user after passing all other validations.
-            if (dbHelper.userExists(mail)) {
-                emailError.value = "Email already registered"
-                return@Button
-            }
-
-            // If all checks pass, proceed with user insertion.
-            val okay = dbHelper.insertUser(fName, lName, gChoice, mail, hashPassword(pass), phone, initialBalance.toDouble())
-            if (okay){
-                Toast.makeText(context, "User added successfully", Toast.LENGTH_LONG).show()
+                // If any validation failed, stop the submission process.
+                if (validationFailed) return@Button
+                // --- End Validation ---
 
                 /**
-                 * An Intent is used here to navigate from the SignUpPage to the LoginPage.
-                 * This is an example of explicit navigation between activities.
+                 * This is where the SQLite database is used for internal storage.
+                 * A new instance of DatabaseHelper is created, and the userExists and insertUser methods are called.
+                 * This is how the app interacts with the database to store and retrieve user data.
                  */
-                val intent = Intent(context, LoginPage::class.java)
-                context.startActivity(intent)
-            } else {
-                Toast.makeText(context, "Error adding user", Toast.LENGTH_LONG).show()
+                val dbHelper = DatabaseHelper(context)
+                // Check for existing user after passing all other validations.
+                if (dbHelper.userExists(mail)) {
+                    emailError.value = "Email already registered"
+                    return@Button
+                }
+
+                // If all checks pass, proceed with user insertion.
+                val okay = dbHelper.insertUser(fName, lName, gChoice, mail, hashPassword(pass), phone, initialBalance.toDouble())
+                if (okay){
+                    Toast.makeText(context, "User added successfully", Toast.LENGTH_LONG).show()
+
+                    /**
+                     * An Intent is used here to navigate from the SignUpPage to the LoginPage.
+                     * This is an example of explicit navigation between activities.
+                     */
+                    val intent = Intent(context, LoginPage::class.java)
+                    context.startActivity(intent)
+                } else {
+                    Toast.makeText(context, "Error adding user", Toast.LENGTH_LONG).show()
+                }
+
+            }) { // end of onClick
+                Text("Submit")
             }
 
-        }) { // end of onClick
-            Text("Submit")
-        }
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Provides a way for the user to navigate back to the login screen.
-        TextButton(onClick = {
-            val intent = Intent(context, LoginPage::class.java)
-            context.startActivity(intent)
-        }) {
-            Text("Back to Login")
+            // Provides a way for the user to navigate back to the login screen.
+            TextButton(onClick = {
+                val intent = Intent(context, LoginPage::class.java)
+                context.startActivity(intent)
+            }) {
+                Text("Back to Login")
+            }
         }
     }
 }
@@ -341,7 +346,6 @@ fun GenderSelection(selectedOption: String, onOptionSelected: (String) -> Unit, 
     }
 }
 
-
 /**
  * This class is a SQLiteOpenHelper that manages database creation and version management.
  * The SQLite database is a form of internal storage used here to persist user data.
@@ -373,7 +377,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             $COLUMN_LAST_NAME TEXT,
             $COLUMN_GENDER TEXT,
             $COLUMN_EMAIL TEXT,
-            $COLUMN_PASSWORD TEXT, 
+            $COLUMN_PASSWORD TEXT,
             $COLUMN_PHONE_NUMBER TEXT,
             $COLUMN_BALANCE REAL
             );

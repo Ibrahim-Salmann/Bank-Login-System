@@ -1,7 +1,6 @@
 package com.example.bankloginsystem
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -35,23 +34,20 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import com.example.bankloginsystem.ui.theme.ScanLines
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.core.net.toUri
 
-/**
- * The BookShelfPage activity displays the user's personal collection of books.
- * It is the main hub for viewing, adding, updating, and deleting books.
- * It ensures that only a logged-in user can access this screen.
- */
 class BookShelfPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Session validation: Ensures a user is logged in before showing the page.
         val userSessionManager = UserSessionManager(this)
         if (!userSessionManager.isLoggedIn()) {
             val intent = Intent(this, LoginPage::class.java)
@@ -60,7 +56,6 @@ class BookShelfPage : ComponentActivity() {
             return
         }
 
-        // Retrieve the logged-in user's ID to fetch their specific data.
         val userDetails = userSessionManager.getUserDetails()
         val userId = userDetails[UserSessionManager.PREF_USER_ID] ?: ""
 
@@ -77,48 +72,28 @@ class BookShelfPage : ComponentActivity() {
     }
 }
 
-/**
- * Creates a temporary, uniquely named image file in the app's private storage.
- * This is a required helper function for the modern `TakePicture` camera contract.
- * @param context The application context, used to access the file system.
- * @return A secure content URI for the newly created file, ready to be used by the camera app.
- */
 private fun createImageFile(context: Context): Uri {
     val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
     val imageFileName = "JPEG_${timeStamp}_"
     val storageDir: File? = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
     val imageFile = File.createTempFile(imageFileName, ".jpg", storageDir)
-    // The authority must match the one defined in the `provider` tag in AndroidManifest.xml.
     return FileProvider.getUriForFile(context, "${context.packageName}.provider", imageFile)
 }
 
-/**
- * The main composable that builds the entire Book Shelf user interface.
- * It manages all the state for the screen, including the book list, search query, delete mode,
- * and dialogs for updating books and choosing image sources.
- * @param modifier Modifier for this composable.
- * @param userId The ID of the currently logged-in user, used for all database operations.
- */
 @Composable
 fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
-    // --- State Management ---
     var searchQuery by remember { mutableStateOf("") }
-    var deleteMode by remember { mutableStateOf(false) } // Is the user currently deleting books?
-    var selectedBooks by remember { mutableStateOf(setOf<Int>()) } // Which books are selected for deletion?
-    var showDeleteConfirmation by remember { mutableStateOf(false) } // Show the delete confirmation dialog?
-    var bookToUpdate by remember { mutableStateOf<UserBook?>(null) } // The book currently being edited.
-    var showImageSourceDialog by remember { mutableStateOf(false) } // Show the Camera/Gallery choice dialog?
+    var deleteMode by remember { mutableStateOf(false) }
+    var selectedBooks by remember { mutableStateOf(setOf<Int>()) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var bookToUpdate by remember { mutableStateOf<UserBook?>(null) }
+    var showImageSourceDialog by remember { mutableStateOf(false) }
 
-    // --- Core Components ---
     val context = LocalContext.current
     val dbHelper = remember { UserBooksDatabaseHelper(context) }
     var allBooks by remember { mutableStateOf<List<UserBook>>(emptyList()) }
-    val coroutineScope = rememberCoroutineScope() // For launching database operations off the main thread.
+    val coroutineScope = rememberCoroutineScope()
 
-    /**
-     * Reloads the user's book list from the database.
-     * This function is called on initial load and after any add, update, or delete operation.
-     */
     fun refreshBookList() {
         coroutineScope.launch {
             val id = userId.toIntOrNull()
@@ -128,11 +103,6 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
         }
     }
 
-    // --- ActivityResult Launchers for Image Selection ---
-
-    /**
-     * A generic handler that takes a URI (from camera or gallery) and updates the book's cover in the database.
-     */
     val imageUpdateHandler = { uri: Uri? ->
         if (uri != null) {
             bookToUpdate?.let { book ->
@@ -140,31 +110,27 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                     val success = dbHelper.updateBookCover(book.bookId, uri.toString())
                     if (success) {
                         Toast.makeText(context, "Cover image updated!", Toast.LENGTH_SHORT).show()
-                        refreshBookList() // Refresh the list to show the new image.
+                        refreshBookList()
                     } else {
                         Toast.makeText(context, "Failed to update cover.", Toast.LENGTH_SHORT).show()
                     }
                 }
-                bookToUpdate = null // Close the update dialog.
+                bookToUpdate = null
             }
         }
     }
 
-    // Launcher for picking an image from the gallery.
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent(), imageUpdateHandler)
 
-    // Launcher for the camera app. It receives a boolean indicating if the photo was successfully saved.
     var tempImageUri by remember { mutableStateOf<Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
-            imageUpdateHandler(tempImageUri) // If successful, pass the URI to our handler.
+            imageUpdateHandler(tempImageUri)
         }
     }
 
-    // Launcher for requesting the CAMERA permission from the user.
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
-            // Permission was granted, now we can safely launch the camera.
             val newImageUri = createImageFile(context)
             tempImageUri = newImageUri
             cameraLauncher.launch(newImageUri)
@@ -173,14 +139,10 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
         }
     }
 
-    // --- Data Loading and UI Logic ---
-
-    // Load the initial book list when the screen is first composed.
     LaunchedEffect(key1 = userId) {
         refreshBookList()
     }
 
-    // Filter the displayed books based on the current search query.
     val filteredBooks = allBooks.filter {
         it.name.contains(searchQuery, true) ||
                 it.author.contains(searchQuery, true) ||
@@ -188,9 +150,6 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                 it.genre.contains(searchQuery, true)
     }
 
-    // --- Dialogs ---
-
-    // Confirmation dialog before deleting books.
     if (showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
@@ -201,7 +160,6 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
                     coroutineScope.launch {
                         selectedBooks.forEach { bookId -> dbHelper.deleteBookFromLibrary(bookId) }
                         refreshBookList()
-                        // Reset all delete-related states.
                         selectedBooks = setOf()
                         deleteMode = false
                         showDeleteConfirmation = false
@@ -213,7 +171,6 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
         )
     }
 
-    // The main dialog for updating a book's status or cover.
     bookToUpdate?.let { book ->
         UpdateBookDialog(
             book = book,
@@ -221,189 +178,205 @@ fun BookShelfScreen(modifier: Modifier = Modifier, userId: String) {
             onStatusChange = { newStatus ->
                 coroutineScope.launch {
                     dbHelper.updateBookStatus(book.id, newStatus)
-                    refreshBookList() // Refresh to show the new status.
+                    refreshBookList()
                     Toast.makeText(context, "Status updated!", Toast.LENGTH_SHORT).show()
                 }
-                bookToUpdate = null // Close the dialog.
+                bookToUpdate = null
             },
-            onCoverChangeClick = { showImageSourceDialog = true } // Open the next dialog.
+            onCoverChangeClick = { showImageSourceDialog = true }
         )
     }
 
-    // The dialog for choosing between Camera and Gallery.
     if (showImageSourceDialog) {
         ImageSourceDialog(
             onDismiss = { showImageSourceDialog = false },
             onCameraClick = {
                 showImageSourceDialog = false
-                // Check for permission before launching the camera.
                 when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
                     PackageManager.PERMISSION_GRANTED -> {
                         val newImageUri = createImageFile(context)
                         tempImageUri = newImageUri
                         cameraLauncher.launch(newImageUri)
                     }
-                    else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA) // Request permission.
+                    else -> cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                 }
             },
             onGalleryClick = {
                 showImageSourceDialog = false
-                galleryLauncher.launch("image/*") // Launch gallery picker.
+                galleryLauncher.launch("image/*")
             }
         )
     }
 
-    // --- Main UI Layout ---
-    Column(modifier = modifier.fillMaxSize()) {
-        TopToolbar(
-            deleteMode = deleteMode,
-            hasBooks = allBooks.isNotEmpty(),
-            booksSelected = selectedBooks.isNotEmpty(),
-            onAddClick = {
-                val intent = Intent(context, AddBookPage::class.java)
-                context.startActivity(intent)
-            },
-            onDeleteToggle = {
-                deleteMode = !deleteMode
-                if (!deleteMode) selectedBooks = setOf() // Clear selections when exiting delete mode.
-            },
-            onConfirmDelete = { showDeleteConfirmation = true },
-            onReturnClick = {
-                val intent = Intent(context, WelcomePage::class.java)
-                context.startActivity(intent)
-                (context as? Activity)?.finish()
-            }
-        )
+    Box(modifier = modifier.fillMaxSize()) {
+        ScanLines()
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopToolbar(
+                deleteMode = deleteMode,
+                hasBooks = allBooks.isNotEmpty(),
+                booksSelected = selectedBooks.isNotEmpty(),
+                onAddClick = {
+                    val intent = Intent(context, AddBookPage::class.java)
+                    context.startActivity(intent)
+                },
+                onDeleteToggle = {
+                    deleteMode = !deleteMode
+                    if (!deleteMode) selectedBooks = setOf()
+                },
+                onConfirmDelete = { showDeleteConfirmation = true },
+                onReturnClick = {
+                    val intent = Intent(context, WelcomePage::class.java)
+                    context.startActivity(intent)
+                    (context as? Activity)?.finish()
+                }
+            )
 
-        SearchBar(query = searchQuery, onQueryChange = { searchQuery = it })
+            SearchBar(query = searchQuery, onQueryChange = { searchQuery = it })
 
-        LazyColumn {
-            items(filteredBooks, key = { it.id }) { book ->
-                BookRow(
-                    book = book,
-                    deleteMode = deleteMode,
-                    isSelected = book.id in selectedBooks,
-                    onBookClick = {
-                        if (deleteMode) {
-                            // In delete mode, clicking a book toggles its selection.
-                            selectedBooks = if (book.id in selectedBooks) selectedBooks - book.id
-                            else selectedBooks + book.id
-                        } else {
-                            // In normal mode, clicking a book opens the update dialog.
-                            bookToUpdate = book
-                        }
-                    }
-                )
+            LazyColumn {
+                items(filteredBooks, key = { it.id }) { book ->
+                    BookItem(
+                        book = book,
+                        isSelected = book.id in selectedBooks,
+                        deleteMode = deleteMode,
+                        onSelect = {
+                            selectedBooks = if (it in selectedBooks) {
+                                selectedBooks - it
+                            } else {
+                                selectedBooks + it
+                            }
+                        },
+                        onLongPress = { bookToUpdate = book }
+                    )
+                }
             }
         }
     }
 }
 
-/**
- * The top toolbar that provides primary actions like adding, deleting, and returning.
- * Its appearance changes based on whether the user is in `deleteMode`.
- */
 @Composable
 fun TopToolbar(
-    deleteMode: Boolean, hasBooks: Boolean, booksSelected: Boolean,
-    onAddClick: () -> Unit, onDeleteToggle: () -> Unit, onConfirmDelete: () -> Unit, onReturnClick: () -> Unit
+    deleteMode: Boolean,
+    hasBooks: Boolean,
+    booksSelected: Boolean,
+    onAddClick: () -> Unit,
+    onDeleteToggle: () -> Unit,
+    onConfirmDelete: () -> Unit,
+    onReturnClick: () -> Unit
 ) {
     Row(
-        Modifier.fillMaxWidth().background(Color(0xFF063041)).padding(8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         if (deleteMode) {
-            // Delete mode UI
-            Button(onClick = onDeleteToggle) { Text("Cancel") }
-            Button(onClick = onConfirmDelete, enabled = booksSelected) { Text("Delete Selected") }
+            Button(onClick = onConfirmDelete, enabled = booksSelected) {
+                Text("Confirm Delete")
+            }
+            Button(onClick = onDeleteToggle) {
+                Text("Cancel")
+            }
         } else {
-            // Normal mode UI
-            Button(onClick = onAddClick) { Text("Add Book") }
-            Button(onClick = onDeleteToggle, enabled = hasBooks) { Text("Delete") }
-            Button(onClick = onReturnClick) { Text("Return") }
+            Button(onClick = onAddClick) {
+                Text("Add Book")
+            }
+            Button(onClick = onDeleteToggle, enabled = hasBooks) {
+                Text("Delete Book(s)")
+            }
+            Button(onClick = onReturnClick) {
+                Text("Return")
+            }
         }
     }
 }
 
-/**
- * A simple search bar for filtering the book list.
- */
 @Composable
 fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
-    TextField(
-        value = query, onValueChange = onQueryChange, modifier = Modifier.fillMaxWidth().padding(12.dp),
-        leadingIcon = { Text("🔍") }, placeholder = { Text("Search books...") },
-        colors = TextFieldDefaults.colors(
-            unfocusedContainerColor = Color(0xFFEEEEEE), focusedContainerColor = Color(0xFFFFFFFF)
-        )
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        label = { Text("Search Books") },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp)
     )
 }
 
-/**
- * A single row in the book list. Displays the book's cover, details, and selection state.
- */
-@SuppressLint("UseKtx")
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun BookRow(book: UserBook, deleteMode: Boolean, isSelected: Boolean, onBookClick: () -> Unit) {
-    // Highlight the row if it's selected for deletion.
-    val backgroundColor = if (isSelected) Color(0xFFD32F2F) else Color(0xFF0B3954)
+fun BookItem(
+    book: UserBook,
+    isSelected: Boolean,
+    deleteMode: Boolean,
+    onSelect: (Int) -> Unit,
+    onLongPress: () -> Unit
+) {
     val context = LocalContext.current
+    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    // This state holds the loaded Bitmap for the book cover.
-    var bookCoverBitmap by remember { mutableStateOf<Bitmap?>(null) }
-
-    // This effect loads the cover image from its URI asynchronously.
-    // It re-runs whenever the `book.coverUri` changes.
     LaunchedEffect(book.coverUri) {
-        if (book.coverUri != null) {
+        if (!book.coverUri.isNullOrEmpty()) {
             try {
-                val inputStream = context.contentResolver.openInputStream(Uri.parse(book.coverUri))
-                bookCoverBitmap = BitmapFactory.decodeStream(inputStream)
+                val uri = book.coverUri.toUri()
+                val inputStream = context.contentResolver.openInputStream(uri)
+                bitmap = BitmapFactory.decodeStream(inputStream)
             } catch (e: Exception) {
                 e.printStackTrace()
-                bookCoverBitmap = null // Failed to load, clear the bitmap.
+                bitmap = null
             }
         } else {
-            bookCoverBitmap = null // Clear bitmap if URI is null
+            bitmap = null
         }
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(8.dp).background(backgroundColor)
-            .clickable(onClick = onBookClick).padding(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = {
+                    if (deleteMode) {
+                        onSelect(book.id)
+                    } else {
+                        onLongPress() // Open dialog on simple click
+                    }
+                },
+                onLongClick = onLongPress // Also open on long click
+            )
+            .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else Color.Transparent)
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Display the loaded image, or a placeholder if it's null.
-        bookCoverBitmap?.let {
+        if (bitmap != null) {
             Image(
-                bitmap = it.asImageBitmap(),
-                contentDescription = "Book Cover",
+                bitmap = bitmap!!.asImageBitmap(),
+                contentDescription = book.name,
                 modifier = Modifier.size(60.dp, 90.dp)
             )
-        } ?: Box(modifier = Modifier.size(60.dp, 90.dp), contentAlignment = Alignment.Center) {
-            Text("📘", fontSize = MaterialTheme.typography.headlineSmall.fontSize)
-        }
-
-        Spacer(Modifier.width(16.dp))
-
-        Column(Modifier.weight(1f)) {
-            Text(book.name, color = Color.White, fontWeight = FontWeight.Bold)
-            Text("By ${book.author}", color = Color.LightGray)
-            Text("${book.category} • ${book.genre}", color = Color.Gray)
-            book.status?.let {
-                Text("Status: $it", color = Color(0xFF00BCD4), style = MaterialTheme.typography.bodySmall)
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(60.dp, 90.dp)
+                    .background(Color.DarkGray),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No Image", color = Color.White)
             }
         }
-        // Show a checkbox in delete mode.
-        if (deleteMode) {
-            Checkbox(checked = isSelected, onCheckedChange = { onBookClick() })
+
+        Spacer(modifier = Modifier.width(16.dp))
+
+        Column {
+            Text(text = book.name, fontWeight = FontWeight.Bold)
+            Text(text = "by ${book.author}")
+            Text(text = "Category: ${book.category}")
+            Text(text = "Genre: ${book.genre}")
+            book.status?.let { Text(text = "Status: $it") }
         }
     }
 }
 
-/**
- * The dialog for updating a book's status or initiating a cover change.
- */
 @Composable
 fun UpdateBookDialog(
     book: UserBook,
@@ -411,8 +384,8 @@ fun UpdateBookDialog(
     onStatusChange: (String?) -> Unit,
     onCoverChangeClick: () -> Unit
 ) {
-    val statuses = listOf("Reading", "Completed", "On Hold", "Dropped", "Plan to Read")
     var expanded by remember { mutableStateOf(false) }
+    val statuses = listOf("Currently Reading", "Completed", "Paused", "Dropped", "Plan to Read")
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -427,7 +400,6 @@ fun UpdateBookDialog(
                         statuses.forEach { status ->
                             DropdownMenuItem(text = { Text(status) }, onClick = { onStatusChange(status); expanded = false })
                         }
-                        // Option to clear the status.
                         DropdownMenuItem(text = { Text("Clear Status") }, onClick = { onStatusChange(null); expanded = false })
                     }
                 }
@@ -435,13 +407,14 @@ fun UpdateBookDialog(
                 Button(onClick = onCoverChangeClick) { Text("Change Cover Image") }
             }
         },
-        confirmButton = { Button(onClick = onDismiss) { Text("Close") } }
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
     )
 }
 
-/**
- * A simple dialog that presents the user with a choice between Camera and Gallery.
- */
 @Composable
 fun ImageSourceDialog(
     onDismiss: () -> Unit,
@@ -450,18 +423,28 @@ fun ImageSourceDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Change Cover Image") },
-        text = { Text("Choose an image source:") },
+        title = { Text("Choose Image Source") },
+        text = { Text("Select a source for the book cover image.") },
         confirmButton = {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Button(onClick = onCameraClick) { Text("Camera") }
-                Button(onClick = onGalleryClick) { Text("Gallery") }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Button(onClick = onCameraClick) {
+                    Text("Camera")
+                }
+                Button(onClick = onGalleryClick) {
+                    Text("Gallery")
+                }
             }
         },
-        dismissButton = { Button(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
     )
 }
-
 
 @Preview(showBackground = true)
 @Composable

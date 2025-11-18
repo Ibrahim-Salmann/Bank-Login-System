@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
+import com.example.bankloginsystem.ui.theme.ScanLines
 
 class WelcomePage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,77 +91,80 @@ fun WelcomePageScreen(
     // Change: Initialize UserSessionManager for logout functionality.
     val userSessionManager = UserSessionManager(context)
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Display name
-        if (fullName.isNotEmpty()) {
-            Text(text = "Welcome, $fullName!", modifier = Modifier.padding(bottom = 24.dp))
-        } else {
-            Text(text = "Welcome!", modifier = Modifier.padding(bottom = 24.dp))
-        }
-
-        Text(text = "Current Balance: $$balance")
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Row (
+    Box(modifier = modifier.fillMaxSize()) {
+        ScanLines()
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        )
-        {
-            Button(onClick = {
-                // The Intent now only needs to specify the destination.
-                // WithdrawPage will get the user's email from the session itself.
-                val intent = Intent(context, WithdrawPage::class.java)
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Display name
+            if (fullName.isNotEmpty()) {
+                Text(text = "Welcome, $fullName!", modifier = Modifier.padding(bottom = 24.dp))
+            } else {
+                Text(text = "Welcome!", modifier = Modifier.padding(bottom = 24.dp))
+            }
+
+            Text(text = "Current Balance: $$balance")
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row (
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            )
+            {
+                Button(onClick = {
+                    // The Intent now only needs to specify the destination.
+                    // WithdrawPage will get the user's email from the session itself.
+                    val intent = Intent(context, WithdrawPage::class.java)
+                    context.startActivity(intent)
+                }) {
+                    Text("Withdraw")
+                }
+
+                Button(onClick = {
+                    // The Intent now only needs to specify the destination.
+                    // DepositPage will get the user's email from the session itself.
+                    val intent = Intent(context, DepositPage::class.java)
+                    context.startActivity(intent)
+                }) {
+                    Text("Deposit")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+
+            OutlinedButton(onClick = {
+                Toast.makeText(context, "Welcome to your book shelf!", Toast.LENGTH_SHORT).show()
+                val intent = Intent(context, BookShelfPage::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
                 context.startActivity(intent)
-            }) {
-                Text("Withdraw")
-            }
+            }) { Text("My Book Shelf")}
 
-            Button(onClick = {
-                // The Intent now only needs to specify the destination.
-                // DepositPage will get the user's email from the session itself.
-                val intent = Intent(context, DepositPage::class.java)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(onClick = {
+                // Change: Log out the user by clearing the session.
+                userSessionManager.logoutUser()
+                val intent = Intent(context, LoginPage::class.java)
+                // Change: Add flags to clear the back stack and prevent returning to this page.
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                 context.startActivity(intent)
+                (context as? Activity)?.finish() // optional: prevents back navigation
             }) {
-                Text("Deposit")
+                Text("Logout")
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-
-        OutlinedButton(onClick = {
-            Toast.makeText(context, "Welcome to your book shelf!", Toast.LENGTH_SHORT).show()
-            val intent = Intent(context, BookShelfPage::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            }
-            context.startActivity(intent)
-        }) { Text("My Book Shelf")}
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedButton(onClick = {
-            // Change: Log out the user by clearing the session.
-            userSessionManager.logoutUser()
-            val intent = Intent(context, LoginPage::class.java)
-            // Change: Add flags to clear the back stack and prevent returning to this page.
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            context.startActivity(intent)
-            (context as? Activity)?.finish() // optional: prevents back navigation
-        }) {
-            Text("Logout")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
