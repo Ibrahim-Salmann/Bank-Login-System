@@ -24,8 +24,8 @@ class UserBooksDatabaseHelper(context: Context)
     : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
-        private const val DATABASE_NAME = "User_Books.db"
-        private const val DATABASE_VERSION = 2 // Incremented version for onUpgrade call
+        private const val DATABASE_NAME = "User_Books_v2.db"
+        private const val DATABASE_VERSION = 1
 
         // Table for all unique books
         const val BOOKS_TABLE_NAME = "books"
@@ -74,11 +74,15 @@ class UserBooksDatabaseHelper(context: Context)
     }
 
     override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) {
-            db?.execSQL("DROP TABLE IF EXISTS user_books") // old table
-            onCreate(db)
-        }
+        db?.execSQL("DROP TABLE IF EXISTS $USER_LIBRARY_TABLE_NAME")
+        db?.execSQL("DROP TABLE IF EXISTS $BOOKS_TABLE_NAME")
+        onCreate(db)
     }
+
+    override fun onDowngrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
+        onUpgrade(db, oldVersion, newVersion)
+    }
+
 
     //  Insert a book for a user
     @SuppressLint("UseKtx")

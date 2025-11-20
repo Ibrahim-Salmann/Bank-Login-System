@@ -143,9 +143,7 @@ fun WelcomePageScreen(
 
             OutlinedButton(onClick = {
                 Toast.makeText(context, "Welcome to your book shelf!", Toast.LENGTH_SHORT).show()
-                val intent = Intent(context, BookShelfPage::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                }
+                val intent = Intent(context, BookShelfPage::class.java)
                 context.startActivity(intent)
             }) { Text("My Book Shelf")}
 
