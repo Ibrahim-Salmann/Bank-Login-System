@@ -3,7 +3,6 @@ package com.example.bankloginsystem
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.database.Cursor
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -40,6 +39,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import com.example.bankloginsystem.ui.theme.ScanLines
+import com.google.firebase.auth.FirebaseAuth
 import kotlin.system.exitProcess
 
 class LoginPage : ComponentActivity() {
@@ -132,49 +132,25 @@ fun ButtonClicked(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 }
 
 
-fun validateLogin(context: Context, email: String, password: String): Boolean {
-    val dbHelper = DatabaseHelper(context)
-    var cursor: Cursor? = null
-
-    try {
-        // 1 Check for blank fields
-        if (email.isBlank() || password.isBlank()) {
-            Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
-            return false
-        }
-
-        // 2 Check if user exists in the database
-        cursor = dbHelper.getUserByEmail(email)
-        if (!cursor.moveToFirst()) { // cursor == null || will always be false
-            Toast.makeText(context, "User not found. Please sign up first.", Toast.LENGTH_SHORT).show()
-            return false
-        }
-
-        // 3 Retrieve stored hashed password
-        val storedPassword = cursor.getString(
-            cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_PASSWORD)
-        )
-
-        // 4 Hash input password and compare
-        val hashedInput = hashPassword(password)
-        if (storedPassword != hashedInput) {
-            Toast.makeText(context, "Incorrect password", Toast.LENGTH_SHORT).show()
-            return false
-        }
-
-        // 5 Success
-        Toast.makeText(context, "Login successful", Toast.LENGTH_SHORT).show()
-        return true
-
-    } catch (e: Exception) {
-        e.printStackTrace()
-        Toast.makeText(context, "Login failed due to an error", Toast.LENGTH_SHORT).show()
-        return false
-
-    } finally {
-        cursor?.close()
-        dbHelper.close()
+// **Firebase and SQLite Integration**
+// This function first validates the login with Firebase, and if successful,
+// proceeds with the existing SQLite and session management logic.
+fun validateLogin(context: Context, email: String, password: String, onLoginSuccess: () -> Unit) {
+    if (email.isBlank() || password.isBlank()) {
+        Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+        return
     }
+
+    FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
+        .addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                // If Firebase authentication is successful, call the onLoginSuccess lambda
+                // to proceed with the app's existing login logic.
+                onLoginSuccess()
+            } else {
+                Toast.makeText(context, "Login failed: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+            }
+        }
 }
 
 
@@ -204,15 +180,14 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ButtonClicked("Sign Up", {
-//                    val context = LocalContext.current // error: context is not available here. Fixed by Placing it in the main body of this function. Thus calling it from a @Composable context, which is valid context variable is then "captured" by the onClick lambda, allowing you to use it to create an Intent and start the SignUpPage activity without any errors.
-                    val intent = Intent(context, SignUpPage::class.java) // error: context is not available here. Fixed by creating: class SignUpPage : ComponentActivity(){} in the SighUpPage.kt file
+                    val intent = Intent(context, SignUpPage::class.java)
                     context.startActivity(intent)
                 }, modifier = Modifier.weight(1f))
                 ButtonClicked("Login", {
-                    // Every validation will be examined using the validateLogin function making sure all are true
-                    val isValid = validateLogin(context, email, password)
-                    if (isValid) {
-
+                    // **Firebase and SQLite Integration**
+                    // 1. Validate with Firebase
+                    validateLogin(context, email, password) {
+                        // 2. On successful Firebase login, proceed with SQLite and session management
                         val dbHelper = DatabaseHelper(context)
                         val cursor = dbHelper.getUserByEmail(email)
 
@@ -224,27 +199,18 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                             cursor.close()
                             dbHelper.close()
 
-                            // Pass user data to WelcomePage
-                            /**
-                             * Creating the Session:
-                             * Upon successful login, `saveUser()` is called.
-                             * This stores the user's name and email in SharedPreferences, officially starting the session.
-                             */
                             userSessionManager.saveUser("$firstName $lastName", email, id)
                             Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
                             val intent = Intent(context, WelcomePage::class.java).apply {
-                                // Add flags to prevent back navigation
                                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                             }
                             context.startActivity(intent)
+                        } else {
+                            // This case should ideally not happen if a user is authenticated with Firebase
+                            // and their data is in the local SQLite database.
+                            Toast.makeText(context, "User data not found in local database.", Toast.LENGTH_SHORT).show()
                         }
-//                        Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
-//                        val intent = Intent(context, WelcomePage::class.java)
-//                        context.startActivity(intent)
                     }
-//                    else {
-//                        Toast.makeText(context, "Invalid email or password", Toast.LENGTH_SHORT).show()
-//                    }
                 }, modifier = Modifier.weight(1f))
                 // finishAffinity() ensures the backstack is cleared, while System.exit(0) stops the app process.
                 ButtonClicked("Exit", {

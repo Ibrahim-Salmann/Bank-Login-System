@@ -45,6 +45,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import com.example.bankloginsystem.ui.theme.ScanLines
+import com.google.firebase.auth.FirebaseAuth
 
 /**
  * The SignUpPage activity hosts the user registration screen.
@@ -106,6 +107,8 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
 
     val passwordVisible = remember { mutableStateOf(false) }
     val confirmPasswordVisible = remember { mutableStateOf(false) }
+    val firebaseAuth = FirebaseAuth.getInstance()
+    val firebaseManager = remember { FirebaseManager() }
 
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -160,7 +163,7 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
                 },
                 modifier = Modifier.fillMaxWidth()
             )
-            if (passwordError.value.isEmpty()) Text( passwordError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            if (passwordError.value.isNotEmpty()) Text( passwordError.value, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -258,32 +261,45 @@ fun SignUpScreen(modifier: Modifier = Modifier) {
                 if (validationFailed) return@Button
                 // --- End Validation ---
 
-                /**
-                 * This is where the SQLite database is used for internal storage.
-                 * A new instance of DatabaseHelper is created, and the userExists and insertUser methods are called.
-                 * This is how the app interacts with the database to store and retrieve user data.
-                 */
                 val dbHelper = DatabaseHelper(context)
-                // Check for existing user after passing all other validations.
                 if (dbHelper.userExists(mail)) {
                     emailError.value = "Email already registered"
                     return@Button
                 }
 
-                // If all checks pass, proceed with user insertion.
-                val okay = dbHelper.insertUser(fName, lName, gChoice, mail, hashPassword(pass), phone, initialBalance.toDouble())
-                if (okay){
-                    Toast.makeText(context, "User added successfully", Toast.LENGTH_LONG).show()
+                firebaseAuth.createUserWithEmailAndPassword(mail, pass)
+                    .addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            val firebaseUser = firebaseAuth.currentUser
+                            val uid = firebaseUser?.uid
 
-                    /**
-                     * An Intent is used here to navigate from the SignUpPage to the LoginPage.
-                     * This is an example of explicit navigation between activities.
-                     */
-                    val intent = Intent(context, LoginPage::class.java)
-                    context.startActivity(intent)
-                } else {
-                    Toast.makeText(context, "Error adding user", Toast.LENGTH_LONG).show()
-                }
+                            if (uid != null) {
+                                // Save to SQLite
+                                val okay = dbHelper.insertUser(fName, lName, gChoice, mail, hashPassword(pass), phone, initialBalance.toDouble())
+                                if (okay) {
+                                    // Save to Firebase Realtime Database
+                                    firebaseManager.saveUser(uid, "$fName $lName", mail)
+
+                                    Toast.makeText(context, "User added successfully", Toast.LENGTH_LONG).show()
+                                    val intent = Intent(context, LoginPage::class.java)
+                                    context.startActivity(intent)
+                                } else {
+                                    // If creating the user in the local database fails, delete the user from Firebase to avoid inconsistency
+                                    firebaseUser.delete().addOnCompleteListener { deleteTask ->
+                                        if (deleteTask.isSuccessful) {
+                                            Toast.makeText(context, "Error adding user to local database. Please try again.", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Critical error: user created in Firebase but not locally. Please contact support.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            } else {
+                                Toast.makeText(context, "Error getting user ID", Toast.LENGTH_LONG).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "Sign up failed: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
 
             }) { // end of onClick
                 Text("Submit")

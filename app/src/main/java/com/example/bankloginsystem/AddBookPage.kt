@@ -35,14 +35,22 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import com.example.bankloginsystem.ui.theme.ScanLines
+import com.google.firebase.auth.FirebaseAuth
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * The AddBookPage activity allows users to add a new book to their collection.
- * It provides a form for entering book details and for choosing a cover image from the
- * camera or gallery. It includes runtime permission handling for the camera.
+ * The AddBookPage activity provides a user interface for adding a new book to the user's library.
+ * It includes fields for book details, category and genre selection, and options to add a cover image
+ * from the device's camera or gallery.
+ *
+ * This activity handles:
+ * - Rendering the form using Jetpack Compose.
+ * - Managing the state of all input fields.
+ * - Handling runtime permissions for camera access.
+ * - Processing image selection from the camera and gallery.
+ * - Saving the new book to both the local SQLite database and Firebase.
  */
 class AddBookPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,23 +66,21 @@ class AddBookPage : ComponentActivity() {
 }
 
 /**
- * Creates a temporary image file and returns its URI.
- * This is the modern, secure way to provide a file path to the camera app.
+ * Creates a temporary image file in the app's external storage directory and returns a content URI for it.
+ * Using a FileProvider is the modern, secure way to share file access with other apps like the camera.
+ *
  * @param context The application context.
- * @return A content URI pointing to the newly created file.
+ * @return A content URI for the new image file.
  */
 private fun createImageFile(context: Context): Uri {
-    // 1. Create a unique file name with a timestamp to avoid collisions.
+    // Create a unique file name using a timestamp.
     val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
     val imageFileName = "JPEG_${timeStamp}_"
-    // 2. Get the directory where the app can store private pictures.
-    //    This is defined in `res/xml/file_paths.xml`.
     val storageDir: File? = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)
     val imageFile = File.createTempFile(imageFileName, ".jpg", storageDir)
 
-    // 3. Return a content URI using the FileProvider. This URI is a secure, shareable
-    //    reference to the file, which doesn't expose the actual file system path.
-    //    The authority string `"${context.packageName}.provider"` MUST match the one in AndroidManifest.xml.
+    // Generate a content URI using the FileProvider.
+    // The authority MUST match the one defined in AndroidManifest.xml.
     return FileProvider.getUriForFile(
         context,
         "${context.packageName}.provider",
@@ -83,33 +89,30 @@ private fun createImageFile(context: Context): Uri {
 }
 
 /**
- * The main composable for the Add Book screen UI.
- * It manages the state for all input fields and handles the camera and gallery logic.
- * @param context The activity context, used for launching other activities and showing Toasts.
+ * The main composable that builds the UI for the "Add Book" screen.
+ * It manages the entire state of the form, including text inputs, dropdowns, and image selection.
  */
 @Composable
 fun AddBookScreen(context: Context) {
+    // --- DEPENDENCY INITIALIZATION ---
     val dbHelper = remember { UserBooksDatabaseHelper(context) }
     val userSessionManager = remember { UserSessionManager(context) }
+    val firebaseManager = remember { FirebaseManager() }
+    val firebaseAuth = FirebaseAuth.getInstance()
 
-    // --- State Management for Form Inputs ---
+    // --- FORM STATE MANAGEMENT ---
     var bookName by remember { mutableStateOf(TextFieldValue("")) }
     var authorName by remember { mutableStateOf(TextFieldValue("")) }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var selectedGenre by remember { mutableStateOf<String?>(null) }
     var selectedStatus by remember { mutableStateOf<String?>(null) }
 
-    // --- State Management for Image Handling ---
-    var coverImageUri by remember { mutableStateOf<Uri?>(null) } // Holds the URI from camera or gallery.
-    var coverImageBitmap by remember { mutableStateOf<Bitmap?>(null) } // Holds the loaded image for display.
+    // --- IMAGE STATE MANAGEMENT ---
+    var coverImageUri by remember { mutableStateOf<Uri?>(null) }
+    var coverImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
-    /**
-     * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 1 ---
-     * This LaunchedEffect block is a listener. It triggers whenever `coverImageUri` changes.
-     * Its purpose is to take the URI (from either the camera or gallery) and load it into a Bitmap
-     * that can be displayed by the `Image` composable. This is done in a coroutine to avoid
-     * blocking the main UI thread while reading the file.
-     */
+    // This listener reacts to changes in `coverImageUri`. When a new URI is set
+    // (from camera or gallery), it loads the image into a Bitmap for display.
     LaunchedEffect(coverImageUri) {
         if (coverImageUri != null) {
             try {
@@ -120,15 +123,12 @@ fun AddBookScreen(context: Context) {
                 Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
             }
         } else {
-            coverImageBitmap = null // Clear the image if the URI is null.
+            coverImageBitmap = null // Clear preview if URI is removed
         }
     }
 
-    // --- Data for Dropdown Menus ---
-    val categories = listOf(
-        "FICTION", "NON-FICTION", "POETRY", "DRAMA / PLAYS",
-        "COMICS / GRAPHIC NOVELS", "CHILDREN’S BOOKS", "YOUNG ADULT (YA)"
-    )
+    // --- DROPDOWN MENU DATA ---
+    val categories = listOf("FICTION", "NON-FICTION", "POETRY", "DRAMA / PLAYS", "COMICS / GRAPHIC NOVELS", "CHILDREN’S BOOKS", "YOUNG ADULT (YA)")
     val genreMap = mapOf(
         "FICTION" to listOf("Fantasy", "Mystery", "Romance", "Adventure", "Horror", "Science-Fiction", "Drama", "Comedy", "Thriller", "Historical Fiction", "Action"),
         "NON-FICTION" to listOf("Biography", "History", "Self-Help", "Science", "Philosophy", "Religion", "Politics", "Art Criticism"),
@@ -140,69 +140,47 @@ fun AddBookScreen(context: Context) {
     )
     val statuses = listOf("Currently Reading", "Completed", "Paused", "Dropped", "Plan to Read")
 
-    // --- ActivityResult Launchers for Camera and Gallery ---
-    var tempImageUri by remember { mutableStateOf<Uri?>(null) }
+    // --- ACTIVITY RESULT LAUNCHERS ---
+    var tempImageUri by remember { mutableStateOf<Uri?>(null) } // Temp storage for camera URI
 
-    /**
-     * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 2 ---
-     * This is the launcher for the camera app. Its job is to take a URI we provide,
-     * launch the camera, and wait for a result. It does NOT ask for permission itself.
-     * When the camera app successfully saves a photo to our URI, `success` will be true.
-     */
+    // Launcher for the camera app. It takes a picture and saves it to the provided URI.
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
-            // The photo was taken and saved. We now update our main state with the URI.
-            coverImageUri = tempImageUri
+            coverImageUri = tempImageUri // On success, update the main URI state
         }
     }
 
-    /**
-     * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 3 ---
-     * This is the launcher for the permission request. Its only job is to ask the user
-     * for a single permission (in this case, `Manifest.permission.CAMERA`).
-     */
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
+    // Launcher for the camera permission request.
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
-            // The user granted permission! We can now proceed to launch the camera.
             val newImageUri = createImageFile(context)
             tempImageUri = newImageUri
-            cameraLauncher.launch(newImageUri)
+            cameraLauncher.launch(newImageUri) // If permission is granted, launch the camera
         } else {
-            // The user denied the permission. It's good practice to show a message explaining why it's needed.
             Toast.makeText(context, "Camera permission is required to take a picture.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    /**
-     * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 4 ---
-     * This is the launcher for the photo gallery. It's much simpler because on modern Android,
-     * we don't need special permissions just to let the user *pick* a photo.
-     * The system handles the permission and file access securely.
-     */
+    // Launcher for the gallery. It lets the user pick an image.
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        // The user picked a photo, and the system gives us a temporary, secure URI.
-        coverImageUri = uri
+        coverImageUri = uri // On selection, update the main URI state
     }
 
-    // --- Main UI Layout ---
+    // --- UI LAYOUT ---
     Box(modifier = Modifier.fillMaxSize()) {
         ScanLines()
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Add a New Book", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineMedium)
 
+            // --- INPUT FIELDS ---
             OutlinedTextField(value = bookName, onValueChange = { bookName = it }, label = { Text("Book Name") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = authorName, onValueChange = { authorName = it }, label = { Text("Author Name") }, modifier = Modifier.fillMaxWidth())
 
-            // --- Dropdown Menus for Category, Genre, and Status ---
+            // --- DROPDOWNS ---
             var categoryExpanded by remember { mutableStateOf(false) }
             Box {
                 Button(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedCategory ?: "Select Category") }
@@ -234,26 +212,20 @@ fun AddBookScreen(context: Context) {
                 }
             }
 
-            // --- Image Selection Section ---
+            // --- IMAGE SELECTION ---
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Insert Cover Image")
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    /**
-                     * --- CAMERA/GALLERY WORKFLOW EXPLANATION: Part 5 (The Final Step) ---
-                     * This is where everything comes together. When the Camera button is clicked:
-                     */
                     Button(onClick = {
-                        // 1. Check if we already have the CAMERA permission.
+                        // Check for camera permission before launching the camera.
                         when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
                             PackageManager.PERMISSION_GRANTED -> {
-                                // 2. If permission is already granted, create a file and launch the camera directly.
                                 val newImageUri = createImageFile(context)
                                 tempImageUri = newImageUri
                                 cameraLauncher.launch(newImageUri)
                             }
                             else -> {
-                                // 3. If permission is NOT granted, launch the permission request launcher.
-                                //    The result of this request will be handled by `cameraPermissionLauncher`.
+                                // If not granted, request permission.
                                 cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                             }
                         }
@@ -261,67 +233,103 @@ fun AddBookScreen(context: Context) {
                     Button(onClick = { galleryLauncher.launch("image/*") }) { Text("Gallery") }
                 }
 
+                // --- IMAGE PREVIEW ---
                 if (coverImageBitmap != null) {
-                    Image(
-                        bitmap = coverImageBitmap!!
-                            .asImageBitmap(),
-                        contentDescription = "Book Cover",
-                        modifier = Modifier
-                            .height(200.dp)
-                            .padding(top = 16.dp)
-                    )
+                    Image(bitmap = coverImageBitmap!!.asImageBitmap(), contentDescription = "Book Cover", modifier = Modifier.height(200.dp).padding(top = 16.dp))
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .height(200.dp)
-                            .fillMaxWidth()
-                            .padding(top = 16.dp)
-                            .background(Color.Gray.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.height(200.dp).fillMaxWidth().padding(top = 16.dp).background(Color.Gray.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
                         Text("Cover Image Preview")
                     }
                 }
             }
 
-            // --- Submission and Navigation ---
+            // --- SUBMIT AND CANCEL BUTTONS ---
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 Button(onClick = {
+                    // --- FORM VALIDATION ---
                     val name = bookName.text
                     val author = authorName.text
                     val category = selectedCategory
                     val genre = selectedGenre
                     val status = selectedStatus
-                    val coverUriString = coverImageUri?.toString() ?: ""
 
                     if (name.isBlank() || author.isBlank() || category.isNullOrBlank() || genre.isNullOrBlank()) {
                         Toast.makeText(context, "Please fill out all required fields.", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
-                    val userDetails = userSessionManager.getUserDetails()
-                    val userId = userDetails[UserSessionManager.PREF_USER_ID]?.toIntOrNull()
-
+                    // --- USER IDENTIFICATION ---
+                    val userId = firebaseAuth.currentUser?.uid
                     if (userId == null) {
                         Toast.makeText(context, "Error: Could not identify user.", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
-                    val success = dbHelper.insertUserBook(userId, name, author, category, genre, coverUriString, status)
-                    if (success) {
-                        Toast.makeText(context, "Book added successfully!", Toast.LENGTH_SHORT).show()
-                        val intent = Intent(context, BookShelfPage::class.java)
-                        context.startActivity(intent)
-                        (context as? Activity)?.finish() // Finish this screen
-                    } else {
-                        Toast.makeText(context, "Failed to add book.", Toast.LENGTH_SHORT).show()
+                    val localUserId = userSessionManager.getUserDetails()[UserSessionManager.PREF_USER_ID]?.toIntOrNull()
+                    if (localUserId == null) {
+                        Toast.makeText(context, "Failed to identify user for SQLite.", Toast.LENGTH_SHORT).show()
+                        return@Button
                     }
+
+                    // --- DATABASE TRANSACTION ---
+                    // This function defines the logic to save the book to the local SQLite database.
+                    // It's designed to be called after the Firebase operations are complete.
+                    val saveBookToDb: (String?, String?) -> Unit = { firebaseKey, coverUrl ->
+                        val success = dbHelper.insertUserBook(localUserId, name, author, category, genre, coverUrl, status, firebaseKey)
+                        if (success) {
+                            Toast.makeText(context, "Book added successfully!", Toast.LENGTH_SHORT).show()
+                            context.startActivity(Intent(context, BookShelfPage::class.java))
+                            (context as? Activity)?.finish()
+                        } else {
+                            Toast.makeText(context, "Failed to add book to SQLite.", Toast.LENGTH_SHORT).show()
+                            // Rollback: If local save fails, delete the entry from Firebase to maintain sync.
+                            if (firebaseKey != null) {
+                                firebaseManager.deleteBook(userId, firebaseKey) { deleted ->
+                                    if (!deleted) {
+                                        Toast.makeText(context, "Warning: Failed to rollback Firebase entry.", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    val book = Book(name, author, category, genre, null, status, null)
+
+                    // If a cover image was chosen, upload it to Firebase Storage first.
+                    if (coverImageUri != null) {
+                        firebaseManager.uploadImage(coverImageUri!!) { downloadUrl ->
+                            if (downloadUrl != null) {
+                                book.coverUri = downloadUrl
+                                // After getting the download URL, save the book to Firebase Realtime Database.
+                                firebaseManager.saveBook(userId, book) { firebaseKey ->
+                                    if (firebaseKey != null) {
+                                        // Finally, save to the local database with the new Firebase key and cover URL.
+                                        saveBookToDb(firebaseKey, downloadUrl)
+                                    } else {
+                                        Toast.makeText(context, "Failed to get Firebase key.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            } else {
+                                Toast.makeText(context, "Failed to upload image.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } else {
+                        // If no image was chosen, save the book directly to Firebase Realtime Database.
+                        firebaseManager.saveBook(userId, book) { firebaseKey ->
+                            if (firebaseKey != null) {
+                                // Save to the local database with the new Firebase key.
+                                saveBookToDb(firebaseKey, null)
+                            } else {
+                                Toast.makeText(context, "Failed to get Firebase key.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+
                 }) { Text("Add Book") }
 
                 Button(onClick = {
-                    val intent = Intent(context, BookShelfPage::class.java)
-                    context.startActivity(intent)
-                    (context as? Activity)?.finish() // Finish this screen without saving
+                    context.startActivity(Intent(context, BookShelfPage::class.java))
+                    (context as? Activity)?.finish()
                 }) { Text("Cancel") }
             }
         }

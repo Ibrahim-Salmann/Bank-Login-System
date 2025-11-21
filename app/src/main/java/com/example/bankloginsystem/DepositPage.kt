@@ -31,7 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import com.example.bankloginsystem.ui.theme.ScanLines
+import com.google.firebase.auth.FirebaseAuth
 
+/**
+ * The `DepositPage` activity provides a user interface for depositing funds into the user's account.
+ * It handles the transaction logic, including input validation and updating the user's balance
+ * in both the local SQLite database and the Firebase Realtime Database.
+ */
 class DepositPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,12 +51,17 @@ class DepositPage : ComponentActivity() {
     }
 }
 
+/**
+ * The main composable for the deposit screen.
+ * It manages the state of the input field, validates the user's input, and processes the deposit transaction.
+ */
 @Composable
 fun DepositPageScreen(modifier: Modifier = Modifier){
     val context = LocalContext.current
     val dbHelper = DatabaseHelper(context)
-    // Change: Initialize UserSessionManager to retrieve session data.
     val userSessionManager = UserSessionManager(context)
+    val firebaseManager = remember { FirebaseManager() }
+    val firebaseAuth = FirebaseAuth.getInstance()
 
     val depositAmount = remember { mutableStateOf("") }
     val depositAmountError = remember { mutableStateOf("") }
@@ -87,11 +98,11 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
             ButtonClicked("Submit", {
                 val amount = depositAmount.value.trim()
 
-                // Change: Fetch user's email from the session.
                 val userDetails = userSessionManager.getUserDetails()
                 val email = userDetails[UserSessionManager.PREF_EMAIL]
+                val firebaseUserId = firebaseAuth.currentUser?.uid
 
-                if (email.isNullOrEmpty()) {
+                if (email.isNullOrEmpty() || firebaseUserId == null) {
                     Toast.makeText(context, "Error: User not logged in", Toast.LENGTH_SHORT).show()
                     return@ButtonClicked
                 }
@@ -113,7 +124,6 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
                 val db = dbHelper.readableDatabase
 
                 try {
-
                     cursor = db.rawQuery(
                         "SELECT ${DatabaseHelper.COLUMN_BALANCE} FROM ${DatabaseHelper.TABLE_USERS} WHERE ${DatabaseHelper.COLUMN_EMAIL} = ?",
                         arrayOf(email)
@@ -121,9 +131,9 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
 
                     if (cursor.moveToFirst()) {
                         val currentBalance = cursor.getDouble(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_BALANCE))
-
                         val newBalance = currentBalance + amountN
 
+                        // 1. Update the balance in the local SQLite database.
                         val writableDb = dbHelper.writableDatabase
                         val values = ContentValues().apply {
                             put(DatabaseHelper.COLUMN_BALANCE, newBalance)
@@ -136,16 +146,22 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
                         )
 
                         if (rowsUpdated > 0) {
-                            Toast.makeText(context, "Deposit successful!", Toast.LENGTH_SHORT)
-                                .show()
-
-                            val intent = Intent(context, WelcomePage::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            // 2. If local update is successful, update Firebase Realtime Database.
+                            firebaseManager.updateBalance(firebaseUserId, newBalance) { success ->
+                                if (success) {
+                                    Toast.makeText(context, "Deposit successful!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    // Notify user if Firebase sync fails, but proceed since local DB is updated.
+                                    Toast.makeText(context, "Deposit successful (cloud sync failed).", Toast.LENGTH_LONG).show()
+                                }
+                                // Navigate back to WelcomePage regardless of Firebase sync status.
+                                val intent = Intent(context, WelcomePage::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                }
+                                context.startActivity(intent)
                             }
-                            context.startActivity(intent)
                         } else {
-                            Toast.makeText(context, "Failed to update balance.", Toast.LENGTH_SHORT)
-                                .show()
+                            Toast.makeText(context, "Failed to update balance.", Toast.LENGTH_SHORT).show()
                         }
                     }
 

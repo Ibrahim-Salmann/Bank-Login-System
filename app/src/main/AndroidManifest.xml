@@ -12,6 +12,7 @@
         android:name="android.hardware.camera"
         android:required="false" />
     <application
+        android:name=".App"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -43,7 +44,7 @@
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:name="androidx.core.content.FileProvider.META_DATA_FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
 
