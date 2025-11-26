@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -39,21 +40,17 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import com.example.bankloginsystem.ui.theme.ScanLines
+import com.google.android.recaptcha.RecaptchaAction
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlin.system.exitProcess
 
 class LoginPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Session in Android app using SharedPreference
-        /**
-         * Session Check on App Start:
-         * 1. An instance of UserSessionManager is created.
-         * 2. It immediately checks if a user is already logged in using `isLoggedIn()`.
-         * 3. If true, it skips the LoginPage and navigates directly to the WelcomePage.
-         * This is the core of the persistent session experience.
-         */
         val userSessionManager = UserSessionManager(this)
         if (userSessionManager.isLoggedIn()){
             val intent = Intent(this, WelcomePage::class.java)
@@ -120,7 +117,6 @@ fun PasswordInput(
 }
 
 
-// Creating a button composable that will be used across all pages.
 @Composable
 fun ButtonClicked(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Button(
@@ -132,9 +128,6 @@ fun ButtonClicked(text: String, onClick: () -> Unit, modifier: Modifier = Modifi
 }
 
 
-// **Firebase and SQLite Integration**
-// This function first validates the login with Firebase, and if successful,
-// proceeds with the existing SQLite and session management logic.
 fun validateLogin(context: Context, email: String, password: String, onLoginSuccess: () -> Unit) {
     if (email.isBlank() || password.isBlank()) {
         Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
@@ -144,8 +137,6 @@ fun validateLogin(context: Context, email: String, password: String, onLoginSucc
     FirebaseAuth.getInstance().signInWithEmailAndPassword(email, password)
         .addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                // If Firebase authentication is successful, call the onLoginSuccess lambda
-                // to proceed with the app's existing login logic.
                 onLoginSuccess()
             } else {
                 Toast.makeText(context, "Login failed: ${task.exception?.message}", Toast.LENGTH_LONG).show()
@@ -159,9 +150,15 @@ fun validateLogin(context: Context, email: String, password: String, onLoginSucc
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val isInPreview = LocalInspectionMode.current
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val userSessionManager = UserSessionManager(context)
+    val app = if(!isInPreview) context.applicationContext as App else null
+    val recaptchaScope = CoroutineScope(Dispatchers.Main)
+    val firebaseManager = remember { if (!isInPreview) FirebaseManager() else null }
+
+
     Box(modifier = modifier.fillMaxSize()) {
         ScanLines()
         Column(
@@ -170,9 +167,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(text = "Login Screen")
-            // Add the EmailInput composable to the HomeScreen
             EmailInput( email = email, onEmailChange = { email = it }, modifier = Modifier.padding(16.dp))
-            // Add the PasswordInput composable to the HomeScreen
             PasswordInput(password = password, onPasswordChange = {password = it}, modifier = Modifier.padding(16.dp))
 
             Row(
@@ -184,41 +179,67 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                     context.startActivity(intent)
                 }, modifier = Modifier.weight(1f))
                 ButtonClicked("Login", {
-                    // **Firebase and SQLite Integration**
-                    // 1. Validate with Firebase
-                    validateLogin(context, email, password) {
-                        // 2. On successful Firebase login, proceed with SQLite and session management
-                        val dbHelper = DatabaseHelper(context)
-                        val cursor = dbHelper.getUserByEmail(email)
+                    recaptchaScope.launch {
+                        app?.recaptchaClient?.execute(RecaptchaAction.LOGIN)
+                            ?.onSuccess {
+                                validateLogin(context, email, password) {
+                                    val firebaseUser = FirebaseAuth.getInstance().currentUser
+                                    if (firebaseUser != null) {
+                                        val dbHelper = DatabaseHelper(context)
+                                        if (dbHelper.userExists(email)) {
+                                            val cursor = dbHelper.getUserByEmail(email)
+                                            if (cursor.moveToFirst()) {
+                                                val firstName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_FIRST_NAME))
+                                                val lastName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_LAST_NAME))
+                                                val id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_ID))
+                                                cursor.close()
 
-                        if (cursor.moveToFirst()){
-                            val firstName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_FIRST_NAME))
-                            val lastName = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_LAST_NAME))
-                            val id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_ID))
-
-                            cursor.close()
-                            dbHelper.close()
-
-                            userSessionManager.saveUser("$firstName $lastName", email, id)
-                            Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
-                            val intent = Intent(context, WelcomePage::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                                userSessionManager.saveUser("$firstName $lastName", email, id)
+                                                Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
+                                                val intent = Intent(context, WelcomePage::class.java).apply {
+                                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                                }
+                                                context.startActivity(intent)
+                                            }
+                                        } else {
+                                            firebaseManager?.getUser(firebaseUser.uid) { user ->
+                                                if (user != null) {
+                                                    val nameParts = user.fullName.split(" ")
+                                                    val firstName = nameParts.getOrNull(0) ?: ""
+                                                    val lastName = nameParts.getOrNull(1) ?: ""
+                                                    // This is a new device, so we need to create a new user entry in the local database.
+                                                    val success = dbHelper.insertUser(firstName, lastName, "", email, "", "", user.balance)
+                                                    if (success) {
+                                                        val newCursor = dbHelper.getUserByEmail(email)
+                                                        if (newCursor.moveToFirst()) {
+                                                            val id = newCursor.getInt(newCursor.getColumnIndexOrThrow(DatabaseHelper.COLUMN_ID))
+                                                            newCursor.close()
+                                                            userSessionManager.saveUser(user.fullName, email, id)
+                                                            Toast.makeText(context, "Login successful!", Toast.LENGTH_SHORT).show()
+                                                            val intent = Intent(context, WelcomePage::class.java).apply {
+                                                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                                            }
+                                                            context.startActivity(intent)
+                                                        }
+                                                    } else {
+                                                        Toast.makeText(context, "Failed to save user data locally.", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                } else {
+                                                    Toast.makeText(context, "Failed to fetch user data from cloud.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
-                            context.startActivity(intent)
-                        } else {
-                            // This case should ideally not happen if a user is authenticated with Firebase
-                            // and their data is in the local SQLite database.
-                            Toast.makeText(context, "User data not found in local database.", Toast.LENGTH_SHORT).show()
-                        }
+                            ?.onFailure { exception ->
+                                Toast.makeText(context, "reCAPTCHA failed: ${exception.message}", Toast.LENGTH_LONG).show()
+                            }
                     }
                 }, modifier = Modifier.weight(1f))
-                // finishAffinity() ensures the backstack is cleared, while System.exit(0) stops the app process.
                 ButtonClicked("Exit", {
-                    // existing the program
                     val activity = (context as? Activity)
-                    // closes all activities in the stack
                     activity?.finishAffinity()
-//                     terminates the process
                     exitProcess(0)
                 }, modifier = Modifier.weight(1f))
 

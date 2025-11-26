@@ -38,6 +38,22 @@ class FirebaseManager {
     }
 
     /**
+     * Retrieves a user's profile from the Firebase Realtime Database.
+     *
+     * @param userId The ID of the user to fetch.
+     * @param onComplete A callback that provides the `User` object or `null` if not found.
+     */
+    fun getUser(userId: String, onComplete: (User?) -> Unit) {
+        database.child("users").child(userId).get()
+            .addOnSuccessListener {
+                onComplete(it.getValue(User::class.java))
+            }
+            .addOnFailureListener {
+                onComplete(null)
+            }
+    }
+
+    /**
      * Uploads an image to Firebase Cloud Storage in the `/images` directory.
      *
      * @param imageUri The local URI of the image to upload.
@@ -163,8 +179,9 @@ class FirebaseManager {
 
 /**
  * A simple data class to represent a user in Firebase.
+ * All fields have default values to allow for safe deserialization from Firebase.
  */
-data class User(val fullName: String, val email: String, var balance: Double = 0.0)
+data class User(val fullName: String = "", val email: String = "", var balance: Double = 0.0)
 
 /**
  * Represents a book in the Firebase database.

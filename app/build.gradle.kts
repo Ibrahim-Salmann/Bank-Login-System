@@ -9,9 +9,7 @@ plugins {
 
 android {
     namespace = "com.example.bankloginsystem"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.bankloginsystem"
@@ -53,7 +51,6 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.material3)
     implementation(libs.firebase.appcheck.playintegrity)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -64,11 +61,12 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // Firebase - BOM manages versions
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.firestore)
-    implementation(libs.firebase.auth)
-    implementation(libs.google.firebase.database.ktx)
-    implementation(libs.google.firebase.storage.ktx)
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    implementation(libs.firebase.auth.ktx)
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.database.ktx)
+    implementation(libs.firebase.storage.ktx)
+    implementation(libs.firebase.analytics)
 
     // Corrected Networking libraries
     implementation(libs.retrofit)
@@ -76,7 +74,15 @@ dependencies {
     implementation(libs.okhttp)
 
     // Credentials for Auth
-    implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+
+    // reCAPTCHA
+    implementation("com.google.android.recaptcha:recaptcha:18.4.0")
+
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
+
+    // Material Icons
+    implementation("androidx.compose.material:material-icons-extended:1.6.8")
+
 }

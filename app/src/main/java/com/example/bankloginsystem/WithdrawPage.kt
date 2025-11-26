@@ -1,5 +1,6 @@
 package com.example.bankloginsystem
 
+import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
 import android.database.Cursor
@@ -15,16 +16,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -62,13 +66,34 @@ fun WithdrawPageScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isInPreview = LocalInspectionMode.current
     val dbHelper = DatabaseHelper(context)
     val userSessionManager = UserSessionManager(context)
-    val firebaseManager = remember { FirebaseManager() }
-    val firebaseAuth = FirebaseAuth.getInstance()
+    val firebaseManager = remember { if (!isInPreview) FirebaseManager() else null }
+    val firebaseAuth = remember { if (!isInPreview) FirebaseAuth.getInstance() else null }
 
     val withdrawnAmount = remember { mutableStateOf("") }
     val withdrawnAmountError = remember { mutableStateOf("") }
+    val showSuccessDialog = remember { mutableStateOf(false) }
+
+    if (showSuccessDialog.value) {
+        AlertDialog(
+            onDismissRequest = { showSuccessDialog.value = false },
+            title = { Text("Success") },
+            text = { Text("Your withdrawal was successful.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSuccessDialog.value = false
+                    val intent = Intent(context, WelcomePage::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    context.startActivity(intent)
+                }) {
+                    Text("Go to Welcome Page")
+                }
+            }
+        )
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         ScanLines()
@@ -105,7 +130,7 @@ fun WithdrawPageScreen(
 
                 val userDetails = userSessionManager.getUserDetails()
                 val email = userDetails[UserSessionManager.PREF_EMAIL]
-                val firebaseUserId = firebaseAuth.currentUser?.uid
+                val firebaseUserId = firebaseAuth?.currentUser?.uid
 
                 if (email.isNullOrEmpty() || firebaseUserId == null) {
                     Toast.makeText(context, "Error: User not logged in", Toast.LENGTH_SHORT).show()
@@ -155,16 +180,10 @@ fun WithdrawPageScreen(
 
                             if (rowsUpdated > 0) {
                                 // 2. If local update is successful, update Firebase Realtime Database.
-                                firebaseManager.updateBalance(firebaseUserId, newBalance) { success ->
-                                    if (success) {
-                                        Toast.makeText(context, "Withdrawal successful!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Withdrawal successful (cloud sync failed).", Toast.LENGTH_LONG).show()
+                                firebaseManager?.updateBalance(firebaseUserId, newBalance) { _ ->
+                                    (context as? Activity)?.runOnUiThread {
+                                        showSuccessDialog.value = true
                                     }
-                                    val intent = Intent(context, WelcomePage::class.java).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    }
-                                    context.startActivity(intent)
                                 }
                             } else {
                                 Toast.makeText(context, "Failed to update balance.", Toast.LENGTH_SHORT).show()
@@ -176,7 +195,6 @@ fun WithdrawPageScreen(
                     Toast.makeText(context, "Error processing withdrawal.", Toast.LENGTH_SHORT).show()
                 } finally {
                     cursor?.close()
-                    db.close()
                 }
             })
 

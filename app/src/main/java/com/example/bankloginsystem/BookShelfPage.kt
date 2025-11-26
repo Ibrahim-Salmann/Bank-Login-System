@@ -17,6 +17,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -38,12 +41,12 @@ import java.net.URL
 
 /**
  * The BookShelfPage activity displays the user's personal collection of books.
- * It ensures that the user is logged in before showing any content.
+ * It ensures that the user is logged in before showing any content by checking the [UserSessionManager].
+ * If the user is not logged in, it redirects them to the [LoginPage].
  */
 class BookShelfPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Redirect to login if the user is not authenticated.
         val userSessionManager = UserSessionManager(this)
         if (!userSessionManager.isLoggedIn()) {
             val intent = Intent(this, LoginPage::class.java)
@@ -64,52 +67,63 @@ class BookShelfPage : ComponentActivity() {
 
 /**
  * The main screen for displaying the user's book collection.
- * It handles fetching books from both local and remote databases, searching, and user interactions.
+ * It handles fetching books from both the local SQLite database and Firebase Realtime Database,
+ * searching and filtering the book list, and handling user interactions like updating book status,
+ * deleting books, and updating cover images.
+ *
+ * @param modifier Modifier for this composable.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookShelfScreen(modifier: Modifier = Modifier) {
+    val isInPreview = LocalInspectionMode.current
     var searchQuery by remember { mutableStateOf("") }
     var allBooks by remember { mutableStateOf<List<UserBook>>(emptyList()) }
-    val firebaseManager = remember { FirebaseManager() }
-    val firebaseAuth = FirebaseAuth.getInstance()
+    val firebaseManager = remember { if(!isInPreview) FirebaseManager() else null }
+    val firebaseAuth = remember { if(!isInPreview) FirebaseAuth.getInstance() else null }
     val context = LocalContext.current
-    val dbHelper = remember { UserBooksDatabaseHelper(context) }
+    val dbHelper = remember { DatabaseHelper(context) }
     val userSessionManager = remember { UserSessionManager(context) }
+    var isDeleteMode by remember { mutableStateOf(false) }
 
     // This effect fetches books from both the local SQLite database and Firebase when the screen loads.
-    LaunchedEffect(key1 = Unit) {
-        // First, load books from the local database for a fast initial display.
-        val localUserId = userSessionManager.getUserDetails()[UserSessionManager.PREF_USER_ID]?.toIntOrNull()
-        if (localUserId != null) {
-            allBooks = dbHelper.getBooksByUser(localUserId)
-        }
+    if (!isInPreview) {
+        LaunchedEffect(key1 = Unit) {
+            // First, load books from the local database for a fast initial display.
+            val localUserId = userSessionManager.getUserDetails()[UserSessionManager.PREF_USER_ID]?.toIntOrNull()
+            if (localUserId != null) {
+                allBooks = dbHelper.getBooksByUser(localUserId)
+            }
 
-        // Then, fetch the latest data from Firebase to ensure the bookshelf is up-to-date.
-        val firebaseUserId = firebaseAuth.currentUser?.uid
-        if (firebaseUserId != null) {
-            firebaseManager.getBooks(firebaseUserId) { firebaseBooks ->
-                // A simple sync strategy: merge Firebase data with local data.
-                val userBooks = firebaseBooks.map { book ->
-                    val localBook = allBooks.find { it.firebaseKey == book.firebaseKey }
-                    UserBook(
-                        id = localBook?.id ?: 0, // Keep local DB ID
-                        userId = localUserId ?: 0,
-                        bookId = localBook?.bookId ?: 0,
-                        name = book.name,
-                        author = book.author,
-                        category = book.category,
-                        genre = book.genre,
-                        coverUri = book.coverUri,
-                        status = book.status,
-                        firebaseKey = book.firebaseKey
-                    )
+            // Then, fetch the latest data from Firebase to ensure the bookshelf is up-to-date.
+            val firebaseUserId = firebaseAuth?.currentUser?.uid
+            if (firebaseUserId != null) {
+                firebaseManager?.getBooks(firebaseUserId) { firebaseBooks ->
+                    // A simple sync strategy: merge Firebase data with local data.
+                    // This ensures that books from both sources are displayed.
+                    // TODO: Implement a more robust data synchronization strategy to handle conflicts.
+                    val localBooks = allBooks
+                    val mergedBooks = (localBooks + firebaseBooks.map { book ->
+                        UserBook(
+                            id = 0, // This will be updated later if the book is not in the local database
+                            userId = localUserId ?: 0,
+                            bookId = 0, // This will be updated later if the book is not in the local database
+                            name = book.name,
+                            author = book.author,
+                            category = book.category,
+                            genre = book.genre,
+                            coverUri = book.coverUri,
+                            status = book.status,
+                            firebaseKey = book.firebaseKey
+                        )
+                    }).distinctBy { it.firebaseKey }
+                    allBooks = mergedBooks
                 }
-                allBooks = userBooks
             }
         }
     }
 
-    // Filter the books based on the user's search query.
+    // Filter the books based on the user's search query in real-time.
     val filteredBooks = allBooks.filter {
         it.name.contains(searchQuery, true) ||
                 it.author.contains(searchQuery, true) ||
@@ -120,29 +134,42 @@ fun BookShelfScreen(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize()) {
         ScanLines()
         Column(modifier = Modifier.fillMaxSize()) {
-            TopToolbar(
-                onAddClick = { context.startActivity(Intent(context, AddBookPage::class.java)) },
-                onReturnClick = {
-                    context.startActivity(Intent(context, WelcomePage::class.java))
-                    (context as? Activity)?.finish()
+            // Top App Bar with actions for deleting books, adding a new book, and returning to the welcome screen.
+            TopAppBar(
+                title = { Text("My Bookshelf") },
+                actions = {
+                    IconButton(onClick = { isDeleteMode = !isDeleteMode }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete Books", tint = if (isDeleteMode) MaterialTheme.colorScheme.primary else Color.Gray)
+                    }
+                    Button(onClick = { context.startActivity(Intent(context, AddBookPage::class.java)) }) { Text("Add Book") }
+                    Button(onClick = { context.startActivity(Intent(context, WelcomePage::class.java)); (context as? Activity)?.finish() }) { Text("Return") }
                 }
             )
 
-            SearchBar(query = searchQuery, onQueryChange = { searchQuery = it })
+            // Search bar to filter the list of books.
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Search Books") },
+                modifier = Modifier.fillMaxWidth().padding(8.dp)
+            )
 
+            // Display the list of books in a LazyColumn for performance.
             LazyColumn {
                 items(filteredBooks, key = { it.id }) { book ->
                     BookItem(
                         book = book,
+                        isDeleteMode = isDeleteMode,
                         onUpdateStatus = { newStatus ->
                             val updatedBook = book.copy(status = newStatus)
-                            val firebaseUserId = firebaseAuth.currentUser?.uid
+                            val firebaseUserId = firebaseAuth?.currentUser?.uid
                             if (firebaseUserId != null && book.firebaseKey != null) {
-                                // Update Firebase first
-                                firebaseManager.updateBook(firebaseUserId, updatedBook.toBook()) { success ->
+                                // First, update the book in Firebase.
+                                firebaseManager?.updateBook(firebaseUserId, updatedBook.toBook()) { success ->
                                     if (success) {
-                                        // Then update local database
+                                        // If the Firebase update is successful, update the local SQLite database.
                                         dbHelper.updateBookStatus(book.id, newStatus)
+                                        // Update the local list to reflect the change immediately.
                                         allBooks = allBooks.map { if (it.id == book.id) updatedBook else it }
                                         Toast.makeText(context, "Status updated", Toast.LENGTH_SHORT).show()
                                     } else {
@@ -152,13 +179,14 @@ fun BookShelfScreen(modifier: Modifier = Modifier) {
                             }
                         },
                         onDelete = {
-                            val firebaseUserId = firebaseAuth.currentUser?.uid
+                            val firebaseUserId = firebaseAuth?.currentUser?.uid
                             if (firebaseUserId != null && book.firebaseKey != null) {
-                                // Delete from Firebase first
-                                firebaseManager.deleteBook(firebaseUserId, book.firebaseKey) { success ->
+                                // First, delete the book from Firebase.
+                                firebaseManager?.deleteBook(firebaseUserId, book.firebaseKey) { success ->
                                     if (success) {
-                                        // Then delete from local database
+                                        // If the Firebase deletion is successful, delete the book from the local SQLite database.
                                         dbHelper.deleteBookFromLibrary(book.id)
+                                        // Update the local list to remove the book immediately.
                                         allBooks = allBooks.filter { it.id != book.id }
                                         Toast.makeText(context, "Book deleted", Toast.LENGTH_SHORT).show()
                                     } else {
@@ -168,17 +196,18 @@ fun BookShelfScreen(modifier: Modifier = Modifier) {
                             }
                         },
                         onUpdateCover = { newCoverUri ->
-                            val firebaseUserId = firebaseAuth.currentUser?.uid
+                            val firebaseUserId = firebaseAuth?.currentUser?.uid
                             if (firebaseUserId != null && book.firebaseKey != null) {
-                                // 1. Upload new image to Firebase Storage
-                                firebaseManager.uploadImage(newCoverUri) { downloadUrl ->
+                                // 1. Upload new image to Firebase Storage.
+                                firebaseManager?.uploadImage(newCoverUri) { downloadUrl ->
                                     if (downloadUrl != null) {
                                         val updatedBook = book.copy(coverUri = downloadUrl)
-                                        // 2. Update the book record in Firebase Realtime Database
+                                        // 2. Update the book record in Firebase Realtime Database.
                                         firebaseManager.updateBook(firebaseUserId, updatedBook.toBook()) { success ->
                                             if (success) {
-                                                // 3. Update the book record in the local SQLite database
+                                                // 3. Update the book record in the local SQLite database.
                                                 dbHelper.updateBookCover(book.bookId, downloadUrl)
+                                                // Update the local list to reflect the change immediately.
                                                 allBooks = allBooks.map { if (it.id == book.id) updatedBook else it }
                                                 Toast.makeText(context, "Cover updated", Toast.LENGTH_SHORT).show()
                                             } else {
@@ -199,7 +228,9 @@ fun BookShelfScreen(modifier: Modifier = Modifier) {
 }
 
 /**
- * Extension function to convert a `UserBook` (local model) to a `Book` (Firebase model).
+ * Extension function to convert a `UserBook` (local data model) to a `Book` (Firebase data model).
+ * This is useful for keeping the data models separate and converting between them when communicating with Firebase.
+ * @return A [Book] object.
  */
 fun UserBook.toBook(): Book {
     return Book(
@@ -213,26 +244,21 @@ fun UserBook.toBook(): Book {
     )
 }
 
-@Composable
-fun TopToolbar(onAddClick: () -> Unit, onReturnClick: () -> Unit) {
-    Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Button(onClick = onAddClick) { Text("Add Book") }
-        Button(onClick = onReturnClick) { Text("Return") }
-    }
-}
-
-@Composable
-fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
-    OutlinedTextField(value = query, onValueChange = onQueryChange, label = { Text("Search Books") }, modifier = Modifier.fillMaxWidth().padding(8.dp))
-}
-
 /**
  * Displays a single book item in the list.
- * It shows the book's details, cover image, and provides options for interaction.
+ * It shows the book's details, cover image, and provides options for interaction like
+ * updating the reading status, deleting the book, or updating the cover image.
+ *
+ * @param book The [UserBook] to display.
+ * @param isDeleteMode A flag to indicate if the delete mode is active.
+ * @param onUpdateStatus A callback function to be invoked when the user updates the book's status.
+ * @param onDelete A callback function to be invoked when the user deletes the book.
+ * @param onUpdateCover A callback function to be invoked when the user updates the book's cover.
  */
 @Composable
 fun BookItem(
     book: UserBook,
+    isDeleteMode: Boolean,
     onUpdateStatus: (String) -> Unit,
     onDelete: () -> Unit,
     onUpdateCover: (Uri) -> Unit
@@ -248,7 +274,8 @@ fun BookItem(
         }
     }
 
-    // This effect loads the book's cover image from a URL when the URI changes.
+    // This effect loads the book's cover image from a URL when the coverUri changes.
+    // It runs in a background thread to avoid blocking the UI.
     LaunchedEffect(book.coverUri) {
         if (!book.coverUri.isNullOrEmpty()) {
             withContext(Dispatchers.IO) {
@@ -261,6 +288,7 @@ fun BookItem(
                     bitmap = BitmapFactory.decodeStream(input)
                 } catch (e: Exception) {
                     e.printStackTrace()
+                    // If image loading fails, bitmap is set to null, and "No Image" will be shown.
                     bitmap = null
                 }
             }
@@ -268,6 +296,7 @@ fun BookItem(
     }
 
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        // The book cover image. It's clickable to allow the user to update the cover.
         Box(modifier = Modifier.clickable { galleryLauncher.launch("image/*") }) {
             if (bitmap != null) {
                 Image(bitmap = bitmap!!.asImageBitmap(), contentDescription = book.name, modifier = Modifier.size(60.dp, 90.dp))
@@ -280,6 +309,7 @@ fun BookItem(
 
         Spacer(modifier = Modifier.width(16.dp))
 
+        // Column for book details: title, author, category, genre, and status.
         Column(modifier = Modifier.weight(1f)) {
             Text(text = book.name, fontWeight = FontWeight.Bold)
             Text(text = "by ${book.author}")
@@ -289,25 +319,34 @@ fun BookItem(
         }
 
         // --- ACTION BUTTONS ---
-        Column {
-            // Button to change the book's reading status.
-            Box {
-                Button(onClick = { statusExpanded = true }) { Text("Status") }
-                DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
-                    statuses.forEach { status ->
-                        DropdownMenuItem(text = { Text(status) }, onClick = {
-                            onUpdateStatus(status)
-                            statusExpanded = false
-                        })
+        // If delete mode is active, show a delete button.
+        if (isDeleteMode) {
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Filled.Delete, contentDescription = "Delete Book", tint = MaterialTheme.colorScheme.error)
+            }
+        } else {
+            // Otherwise, show a button to update the book's status.
+            Column {
+                Box {
+                    Button(onClick = { statusExpanded = true }) { Text("Status") }
+                    DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                        statuses.forEach { status ->
+                            DropdownMenuItem(text = { Text(status) }, onClick = {
+                                onUpdateStatus(status)
+                                statusExpanded = false
+                            })
+                        }
                     }
                 }
             }
-            // Button to delete the book from the user's library.
-            Button(onClick = onDelete, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Delete") }
         }
     }
 }
 
+/**
+ * A preview function to render the `BookShelfScreen` in Android Studio's design view.
+ * It's wrapped in the app's theme to ensure consistent styling.
+ */
 @Preview(showBackground = true)
 @Composable
 fun BookShelfScreenPreview() {

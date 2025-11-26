@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
@@ -93,33 +94,36 @@ fun WelcomePageScreen(
     initialBalance: Double = 0.0
 ) {
     val context = LocalContext.current
+    val isInPreview = LocalInspectionMode.current
     val userSessionManager = UserSessionManager(context)
-    val firebaseManager = remember { FirebaseManager() }
-    val firebaseAuth = FirebaseAuth.getInstance()
+    val firebaseManager = remember { if (!isInPreview) FirebaseManager() else null }
+    val firebaseAuth = remember { if (!isInPreview) FirebaseAuth.getInstance() else null }
     val dbHelper = DatabaseHelper(context)
 
     var balance by remember { mutableStateOf(initialBalance) }
 
     // This effect runs when the screen is first displayed. It fetches the latest balance from Firebase.
-    LaunchedEffect(key1 = Unit) {
-        val firebaseUserId = firebaseAuth.currentUser?.uid
-        if (firebaseUserId != null) {
-            firebaseManager.getUserBalance(firebaseUserId) { firebaseBalance ->
-                if (firebaseBalance != null && firebaseBalance != balance) {
-                    balance = firebaseBalance
+    if (!isInPreview) {
+        LaunchedEffect(key1 = Unit) {
+            val firebaseUserId = firebaseAuth?.currentUser?.uid
+            if (firebaseUserId != null) {
+                firebaseManager?.getUserBalance(firebaseUserId) { firebaseBalance ->
+                    if (firebaseBalance != null && firebaseBalance != balance) {
+                        balance = firebaseBalance
 
-                    // Also, update the local SQLite database to keep it in sync.
-                    val email = userSessionManager.getUserDetails()[UserSessionManager.PREF_EMAIL]
-                    if (email != null) {
-                        val values = ContentValues().apply {
-                            put(DatabaseHelper.COLUMN_BALANCE, firebaseBalance)
+                        // Also, update the local SQLite database to keep it in sync.
+                        val email = userSessionManager.getUserDetails()[UserSessionManager.PREF_EMAIL]
+                        if (email != null) {
+                            val values = ContentValues().apply {
+                                put(DatabaseHelper.COLUMN_BALANCE, firebaseBalance)
+                            }
+                            dbHelper.writableDatabase.update(
+                                DatabaseHelper.TABLE_USERS,
+                                values,
+                                "${DatabaseHelper.COLUMN_EMAIL} = ?",
+                                arrayOf(email)
+                            )
                         }
-                        dbHelper.writableDatabase.update(
-                            DatabaseHelper.TABLE_USERS,
-                            values,
-                            "${DatabaseHelper.COLUMN_EMAIL} = ?",
-                            arrayOf(email)
-                        )
                     }
                 }
             }
