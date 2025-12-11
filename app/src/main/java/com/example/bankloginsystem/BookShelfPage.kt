@@ -2,8 +2,6 @@ package com.example.bankloginsystem
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
@@ -11,7 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -24,20 +21,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import coil.compose.SubcomposeAsyncImage
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import com.example.bankloginsystem.ui.theme.ScanLines
 import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import com.google.firebase.perf.FirebasePerformance
 
 /**
  * The BookShelfPage activity displays the user's personal collection of books.
@@ -89,6 +82,8 @@ fun BookShelfScreen(modifier: Modifier = Modifier) {
     // This effect fetches books from both the local SQLite database and Firebase when the screen loads.
     if (!isInPreview) {
         LaunchedEffect(key1 = Unit) {
+            val bookLoadTrace = FirebasePerformance.getInstance().newTrace("book_load_trace")
+            bookLoadTrace.start()
             // First, load books from the local database for a fast initial display.
             val localUserId = userSessionManager.getUserDetails()[UserSessionManager.PREF_USER_ID]?.toIntOrNull()
             if (localUserId != null) {
@@ -118,6 +113,7 @@ fun BookShelfScreen(modifier: Modifier = Modifier) {
                         )
                     }).distinctBy { it.firebaseKey }
                     allBooks = mergedBooks
+                    bookLoadTrace.stop()
                 }
             }
         }
@@ -263,7 +259,6 @@ fun BookItem(
     onDelete: () -> Unit,
     onUpdateCover: (Uri) -> Unit
 ) {
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var statusExpanded by remember { mutableStateOf(false) }
     val statuses = listOf("Currently Reading", "Completed", "Paused", "Dropped", "Plan to Read")
 
@@ -274,38 +269,23 @@ fun BookItem(
         }
     }
 
-    // This effect loads the book's cover image from a URL when the coverUri changes.
-    // It runs in a background thread to avoid blocking the UI.
-    LaunchedEffect(book.coverUri) {
-        if (!book.coverUri.isNullOrEmpty()) {
-            withContext(Dispatchers.IO) {
-                try {
-                    val url = URL(book.coverUri)
-                    val connection = url.openConnection() as HttpURLConnection
-                    connection.doInput = true
-                    connection.connect()
-                    val input: InputStream = connection.inputStream
-                    bitmap = BitmapFactory.decodeStream(input)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    // If image loading fails, bitmap is set to null, and "No Image" will be shown.
-                    bitmap = null
-                }
-            }
-        }
-    }
-
     Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         // The book cover image. It's clickable to allow the user to update the cover.
-        Box(modifier = Modifier.clickable { galleryLauncher.launch("image/*") }) {
-            if (bitmap != null) {
-                Image(bitmap = bitmap!!.asImageBitmap(), contentDescription = book.name, modifier = Modifier.size(60.dp, 90.dp))
-            } else {
-                Box(modifier = Modifier.size(60.dp, 90.dp).background(Color.DarkGray), contentAlignment = Alignment.Center) {
+        SubcomposeAsyncImage(
+            model = book.coverUri,
+            contentDescription = book.name,
+            modifier = Modifier
+                .size(60.dp, 90.dp)
+                .clickable { galleryLauncher.launch("image/*") },
+            loading = {
+                CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+            },
+            error = {
+                Box(modifier = Modifier.fillMaxSize().background(Color.DarkGray), contentAlignment = Alignment.Center) {
                     Text("No Image", color = Color.White)
                 }
             }
-        }
+        )
 
         Spacer(modifier = Modifier.width(16.dp))
 

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.google.firebase.perf)
 }
 
 android {
@@ -61,12 +62,18 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // Firebase - BOM manages versions
-    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
-    implementation(libs.firebase.auth.ktx)
-    implementation(libs.firebase.firestore.ktx)
-    implementation(libs.firebase.database.ktx)
-    implementation(libs.firebase.storage.ktx)
-    implementation(libs.firebase.analytics)
+    implementation(platform("com.google.firebase:firebase-bom:34.5.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-storage")
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-perf")
+    // Add the dependency for the Firebase AI Logic library
+    // When NOT using the BoM, you must specify versions in Firebase library dependencies
+    implementation("com.google.firebase:firebase-ai")
+
+
 
     // Corrected Networking libraries
     implementation(libs.retrofit)
@@ -84,5 +91,10 @@ dependencies {
 
     // Material Icons
     implementation("androidx.compose.material:material-icons-extended:1.6.8")
+
+    // Coil for image loading
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
+    implementation("androidx.paging:paging-compose:3.3.0")
 
 }

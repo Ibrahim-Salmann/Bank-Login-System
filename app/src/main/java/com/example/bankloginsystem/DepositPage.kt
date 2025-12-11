@@ -16,12 +16,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -70,26 +68,6 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
 
     val depositAmount = remember { mutableStateOf("") }
     val depositAmountError = remember { mutableStateOf("") }
-    val showSuccessDialog = remember { mutableStateOf(false) }
-
-    if (showSuccessDialog.value) {
-        AlertDialog(
-            onDismissRequest = { showSuccessDialog.value = false },
-            title = { Text("Success") },
-            text = { Text("Your deposit was successful.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showSuccessDialog.value = false
-                    val intent = Intent(context, WelcomePage::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    context.startActivity(intent)
-                }) {
-                    Text("Go to Welcome Page")
-                }
-            }
-        )
-    }
 
     Box(modifier = modifier.fillMaxSize()) {
         ScanLines()
@@ -174,9 +152,12 @@ fun DepositPageScreen(modifier: Modifier = Modifier){
                             firebaseManager?.updateBalance(firebaseUserId, newBalance) { success ->
                                 (context as? Activity)?.runOnUiThread {
                                     if (success) {
-                                        showSuccessDialog.value = true
+                                        Toast.makeText(context, "Deposit successful.", Toast.LENGTH_SHORT).show()
+                                        val intent = Intent(context, WelcomePage::class.java)
+                                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        context.startActivity(intent)
                                     } else {
-                                        showSuccessDialog.value = true
+                                        Toast.makeText(context, "Firebase balance update failed.", Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             }

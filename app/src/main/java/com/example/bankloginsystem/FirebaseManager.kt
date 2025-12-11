@@ -7,6 +7,8 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.storage.FirebaseStorage
 import java.util.UUID
+import com.google.firebase.database.Query
+import kotlinx.coroutines.tasks.await
 
 /**
  * A singleton-style manager for handling all interactions with Firebase services.
@@ -66,7 +68,7 @@ class FirebaseManager {
         val imageRef = storage.child("images/$fileName")
 
         imageRef.putFile(imageUri)
-            .addOnSuccessListener { 
+            .addOnSuccessListener {
                 // If the upload is successful, get the public download URL.
                 imageRef.downloadUrl.addOnSuccessListener { uri ->
                     onComplete(uri.toString())
@@ -97,29 +99,105 @@ class FirebaseManager {
 
     /**
      * Retrieves all books for a specific user from the Realtime Database.
-     * It sets up a continuous listener, so it will automatically update the UI on any data change.
+     * This method attaches a `ValueEventListener` which provides a real-time subscription to the data.
+     * The `onDataChange` callback will be triggered once with the initial state of the data, and then
+     * again every time the data at this location changes in the database.
      *
-     * @param userId The ID of the user.
-     * @param onComplete A callback that provides a list of `Book` objects.
+     * @param userId The ID of the user whose books are to be fetched.
+     * @param onComplete A callback function that will be invoked with the complete list of `Book` objects.
+     *                   This callback will be called every time the data updates.
      */
     fun getBooks(userId: String, onComplete: (List<Book>) -> Unit) {
         database.child("books").child(userId).addValueEventListener(object : ValueEventListener {
+            /**
+             * This method is called once with the initial value and again
+             * whenever data at this location is updated.
+             *
+             * @param snapshot A `DataSnapshot` instance containing the data at the specified
+             *                 database reference. You can extract the data from this snapshot.
+             *                 The snapshot represents the complete data at `/books/{userId}`.
+             */
             override fun onDataChange(snapshot: DataSnapshot) {
                 val books = mutableListOf<Book>()
+                // The `snapshot.children` property returns an iterable of all the direct
+                // children at this location. In this case, each child is a book.
                 for (bookSnapshot in snapshot.children) {
+                    // `getValue(Book::class.java)` automatically deserializes the child snapshot
+                    // into a `Book` data class object. Firebase matches the keys in the snapshot
+                    // to the property names in your data class.
                     val book = bookSnapshot.getValue(Book::class.java)
-                    // Manually add the Firebase key to each book object for future reference.
+
+                    // The `bookSnapshot.key` gives you the unique key for the book in Firebase
+                    // (e.g., "-Nq..."). We manually add this to our `Book` object so we can
+                    // reference it later for updates or deletions.
                     book?.firebaseKey = bookSnapshot.key
                     book?.let { books.add(it) }
                 }
+                // Finally, we pass the fully parsed list of books to the `onComplete` callback.
+                // Since this is a real-time listener, this code will execute every time a book is
+                // added, updated, or removed for this user in Firebase.
                 onComplete(books)
             }
 
+            /**
+             * This method will be called in the event that the client does not have permission
+             * to read the data at the specified location.
+             *
+             * @param error A `DatabaseError` object containing details about the failure.
+             */
             override fun onCancelled(error: DatabaseError) {
-                // In a production app, you should log this error or show a message to the user.
+                // In a production app, you should implement proper error handling,
+                // such as logging the error or displaying a message to the user.
+                onComplete(emptyList()) // You might want to return an empty list or handle the error differently.
             }
         })
     }
+    
+    /**
+     * Fetches a single page of books for a user from the Realtime Database for pagination.
+     *
+     * @param userId The ID of the user whose books are to be fetched.
+     * @param pageSize The number of books to retrieve for the page.
+     * @param startKey The Firebase key of the item to start after. For the first page, this is null.
+     * @return A Pair containing the list of books for the page and the key for the next page.
+     */
+    suspend fun getBooksPage(userId: String, pageSize: Int, startKey: String?): Pair<List<Book>, String?> {
+        val query: Query = database.child("books").child(userId).orderByKey()
+
+        val finalQuery = if (startKey == null) {
+            query.limitToFirst(pageSize + 1)
+        } else {
+            // The +1 is to fetch one extra item, which tells us if there's a next page.
+            query.startAt(startKey).limitToFirst(pageSize + 1)
+        }
+
+        val snapshot = finalQuery.get().await()
+
+        val books = snapshot.children.mapNotNull { dataSnapshot ->
+            dataSnapshot.getValue(Book::class.java)?.apply {
+                firebaseKey = dataSnapshot.key
+            }
+        }
+
+        // The query with startAt is inclusive. If it's not the first page, we need to drop the first item,
+        // which is the last item from the previous page.
+        val pageData = if (startKey != null && books.isNotEmpty()) {
+            books.drop(1)
+        } else {
+            books
+        }
+
+        val nextKey = if (pageData.size > pageSize) {
+            // We fetched one extra item. The key of this extra item is the starting point for the next page.
+            pageData.last().firebaseKey
+        } else {
+            null
+        }
+
+        // Return the list without the extra item used for determining the next key.
+        return Pair(pageData.take(pageSize), nextKey)
+    }
+
 
     /**
      * Updates an existing book in a user's library.

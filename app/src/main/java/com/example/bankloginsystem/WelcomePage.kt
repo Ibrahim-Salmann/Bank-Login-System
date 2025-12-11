@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.example.bankloginsystem.ui.theme.BankLoginSystemTheme
 import com.example.bankloginsystem.ui.theme.ScanLines
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.perf.FirebasePerformance
 
 /**
  * The `WelcomePage` is the main screen users see after logging in.
@@ -95,16 +96,18 @@ fun WelcomePageScreen(
 ) {
     val context = LocalContext.current
     val isInPreview = LocalInspectionMode.current
-    val userSessionManager = UserSessionManager(context)
+    val userSessionManager = remember { if (!isInPreview) UserSessionManager(context) else null }
     val firebaseManager = remember { if (!isInPreview) FirebaseManager() else null }
     val firebaseAuth = remember { if (!isInPreview) FirebaseAuth.getInstance() else null }
-    val dbHelper = DatabaseHelper(context)
+    val dbHelper = remember { if (!isInPreview) DatabaseHelper(context) else null }
 
     var balance by remember { mutableStateOf(initialBalance) }
 
     // This effect runs when the screen is first displayed. It fetches the latest balance from Firebase.
     if (!isInPreview) {
         LaunchedEffect(key1 = Unit) {
+            val balanceFetchTrace = FirebasePerformance.getInstance().newTrace("balance_fetch_trace")
+            balanceFetchTrace.start()
             val firebaseUserId = firebaseAuth?.currentUser?.uid
             if (firebaseUserId != null) {
                 firebaseManager?.getUserBalance(firebaseUserId) { firebaseBalance ->
@@ -112,12 +115,12 @@ fun WelcomePageScreen(
                         balance = firebaseBalance
 
                         // Also, update the local SQLite database to keep it in sync.
-                        val email = userSessionManager.getUserDetails()[UserSessionManager.PREF_EMAIL]
+                        val email = userSessionManager?.getUserDetails()?.get(UserSessionManager.PREF_EMAIL)
                         if (email != null) {
                             val values = ContentValues().apply {
                                 put(DatabaseHelper.COLUMN_BALANCE, firebaseBalance)
                             }
-                            dbHelper.writableDatabase.update(
+                            dbHelper?.writableDatabase?.update(
                                 DatabaseHelper.TABLE_USERS,
                                 values,
                                 "${DatabaseHelper.COLUMN_EMAIL} = ?",
@@ -125,6 +128,7 @@ fun WelcomePageScreen(
                             )
                         }
                     }
+                    balanceFetchTrace.stop()
                 }
             }
         }
@@ -183,13 +187,15 @@ fun WelcomePageScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedButton(onClick = {
-                FirebaseAuth.getInstance().signOut()
-                userSessionManager.logoutUser()
+                if (!isInPreview) {
+                    FirebaseAuth.getInstance().signOut()
+                    userSessionManager?.logoutUser()
 
-                val intent = Intent(context, LoginPage::class.java)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                context.startActivity(intent)
-                (context as? Activity)?.finish()
+                    val intent = Intent(context, LoginPage::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    context.startActivity(intent)
+                    (context as? Activity)?.finish()
+                }
             }) {
                 Text("Logout")
             }

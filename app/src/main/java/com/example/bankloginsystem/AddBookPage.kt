@@ -1,6 +1,8 @@
+@file:Suppress("UNCHECKED_CAST")
+
 package com.example.bankloginsystem
 
-import android.Manifest
+import  android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
@@ -15,17 +17,37 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -38,7 +60,8 @@ import com.example.bankloginsystem.ui.theme.ScanLines
 import com.google.firebase.auth.FirebaseAuth
 import java.io.File
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 /**
  * The AddBookPage activity provides a user interface for adding a new book to the user's library.
@@ -55,6 +78,7 @@ import java.util.*
 class AddBookPage : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             BankLoginSystemTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -90,21 +114,19 @@ private fun createImageFile(context: Context): Uri {
 }
 
 /**
- * The main composable that builds the UI for the "Add Book" screen.
- * It manages the entire state of the form, including text inputs, dropdowns, image selection,
- * and the submission process.
+ * Stateful composable that manages the logic for adding a new book.
+ * It handles state, user input, permissions, and database interactions.
  *
- * @param context The context of the activity, used for creating intents and accessing resources.
+ * @param context The context of the activity.
  */
 @Composable
 fun AddBookScreen(context: Context) {
     val isInPreview = LocalInspectionMode.current
-    // Safely cast the context to an Activity to allow finishing the activity.
     val activity = context as? Activity
 
     // --- DEPENDENCY INITIALIZATION ---
-    val dbHelper = remember { DatabaseHelper(context) }
-    val userSessionManager = remember { UserSessionManager(context) }
+    val dbHelper = remember { if (!isInPreview) DatabaseHelper(context) else null }
+    val userSessionManager = remember { if (!isInPreview) UserSessionManager(context) else null }
     val firebaseManager = remember { if (!isInPreview) FirebaseManager() else null }
     val firebaseAuth = remember { if (!isInPreview) FirebaseAuth.getInstance() else null }
 
@@ -118,10 +140,8 @@ fun AddBookScreen(context: Context) {
     // --- IMAGE STATE MANAGEMENT ---
     var coverImageUri by remember { mutableStateOf<Uri?>(null) }
     var coverImageBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var isLoading by remember { mutableStateOf(false) } // To show a loading indicator during image upload.
+    var isLoading by remember { mutableStateOf(false) }
 
-    // This listener reacts to changes in `coverImageUri`. When a new URI is set
-    // (from camera or gallery), it loads the image into a Bitmap for display.
     LaunchedEffect(coverImageUri) {
         if (coverImageUri != null) {
             try {
@@ -132,7 +152,7 @@ fun AddBookScreen(context: Context) {
                 Toast.makeText(context, "Failed to load image", Toast.LENGTH_SHORT).show()
             }
         } else {
-            coverImageBitmap = null // Clear preview if URI is removed
+            coverImageBitmap = null
         }
     }
 
@@ -150,34 +170,166 @@ fun AddBookScreen(context: Context) {
     val statuses = listOf("Currently Reading", "Completed", "Paused", "Dropped", "Plan to Read")
 
     // --- ACTIVITY RESULT LAUNCHERS ---
-    var tempImageUri by remember { mutableStateOf<Uri?>(null) } // Temp storage for camera URI
+    var tempImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Launcher for the camera app. It takes a picture and saves it to the provided URI.
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success) {
-            coverImageUri = tempImageUri // On success, update the main URI state
+            coverImageUri = tempImageUri
         }
     }
 
-    // Launcher for the camera permission request.
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
             val newImageUri = createImageFile(context)
             tempImageUri = newImageUri
-            cameraLauncher.launch(newImageUri) // If permission is granted, launch the camera
+            cameraLauncher.launch(newImageUri)
         } else {
             Toast.makeText(context, "Camera permission is required to take a picture.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Launcher for the gallery. It lets the user pick an image.
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            coverImageUri = uri // On selection, update the main URI state
+            coverImageUri = uri
         }
     }
 
-    // --- UI LAYOUT ---
+    // --- EVENT HANDLERS ---
+    val onCameraClick = {
+        if (!isInPreview) {
+            when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
+                PackageManager.PERMISSION_GRANTED -> {
+                    val newImageUri = createImageFile(context)
+                    tempImageUri = newImageUri
+                    cameraLauncher.launch(newImageUri)
+                }
+                else -> {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                }
+            }
+        }
+    }
+
+    val onGalleryClick = {
+        galleryLauncher.launch("image/*")
+    }
+
+    val onReturnClick = {
+        activity?.finish()
+    }
+
+    val onSubmitClick = {
+        if (!isInPreview) {
+            val name = bookName.text.trim()
+            val author = authorName.text.trim()
+            if (name.isEmpty() || author.isEmpty() || selectedCategory == null || selectedGenre == null) {
+                Toast.makeText(context, "Please fill all required fields.", Toast.LENGTH_SHORT).show()
+            } else {
+                val userDetails = userSessionManager?.getUserDetails()
+                val userId = userDetails?.get(UserSessionManager.PREF_USER_ID)?.toIntOrNull() ?: 0
+                val firebaseUser = firebaseAuth?.currentUser
+
+                if (userId == 0 || firebaseUser == null) {
+                    Toast.makeText(context, "Error: User not logged in.", Toast.LENGTH_SHORT).show()
+                } else {
+                    fun saveBookData(coverUrl: String?) {
+                        val bookForFirebase = Book(
+                            name = name,
+                            author = author,
+                            category = selectedCategory!!,
+                            genre = selectedGenre!!,
+                            coverUri = coverUrl,
+                            status = selectedStatus
+                        )
+
+                        firebaseManager?.saveBook(userId = firebaseUser.uid, book = bookForFirebase) { firebaseKey ->
+                            isLoading = false
+                            if (firebaseKey != null) {
+                                val success = dbHelper?.insertUserBook(
+                                    userId, name, author, selectedCategory!!, selectedGenre!!, coverUrl, selectedStatus, firebaseKey
+                                ) ?: false
+                                if (success) {
+                                    Toast.makeText(context, "Book added successfully!", Toast.LENGTH_SHORT).show()
+                                    activity?.finish()
+                                } else {
+                                    Toast.makeText(context, "Error saving book to local database.", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                Toast.makeText(context, "Error saving book to Firebase.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+
+                    isLoading = true
+                    if (coverImageUri != null) {
+                        firebaseManager?.uploadImage(coverImageUri!!) { downloadUrl ->
+                            if (downloadUrl != null) {
+                                saveBookData(downloadUrl)
+                            } else {
+                                isLoading = false
+                                Toast.makeText(context, "Failed to upload image.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    } else {
+                        saveBookData(null)
+                    }
+                }
+            }
+        }
+    }
+
+    AddBookForm(
+        bookName = bookName,
+        onBookNameChange = { bookName = it },
+        authorName = authorName,
+        onAuthorNameChange = { authorName = it },
+        categories = categories,
+        selectedCategory = selectedCategory,
+        onCategorySelected = {
+            selectedCategory = it
+            selectedGenre = null // Reset genre when category changes
+        },
+        genreMap = genreMap,
+        selectedGenre = selectedGenre,
+        onGenreSelected = { selectedGenre = it },
+        statuses = statuses,
+        selectedStatus = selectedStatus,
+        onStatusSelected = { selectedStatus = it },
+        onCameraClick = onCameraClick,
+        onGalleryClick = onGalleryClick,
+        coverImageBitmap = coverImageBitmap,
+        isLoading = isLoading,
+        onSubmitClick = onSubmitClick,
+        onReturnClick = onReturnClick as () -> Unit
+    )
+}
+
+/**
+ * A stateless composable that displays the book creation form.
+ * This composable is optimized for previewing as it contains no business logic.
+ */
+@Composable
+fun AddBookForm(
+    bookName: TextFieldValue,
+    onBookNameChange: (TextFieldValue) -> Unit,
+    authorName: TextFieldValue,
+    onAuthorNameChange: (TextFieldValue) -> Unit,
+    categories: List<String>,
+    selectedCategory: String?,
+    onCategorySelected: (String) -> Unit,
+    genreMap: Map<String, List<String>>,
+    selectedGenre: String?,
+    onGenreSelected: (String) -> Unit,
+    statuses: List<String>,
+    selectedStatus: String?,
+    onStatusSelected: (String) -> Unit,
+    onCameraClick: () -> Unit,
+    onGalleryClick: () -> Unit,
+    coverImageBitmap: Bitmap?,
+    isLoading: Boolean,
+    onSubmitClick: () -> Unit,
+    onReturnClick: () -> Unit
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         ScanLines()
         Column(
@@ -190,17 +342,15 @@ fun AddBookScreen(context: Context) {
         ) {
             Text("Add a New Book", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineMedium)
 
-            // --- INPUT FIELDS ---
-            OutlinedTextField(value = bookName, onValueChange = { bookName = it }, label = { Text("Book Name") }, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = authorName, onValueChange = { authorName = it }, label = { Text("Author Name") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = bookName, onValueChange = onBookNameChange, label = { Text("Book Name") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = authorName, onValueChange = onAuthorNameChange, label = { Text("Author Name") }, modifier = Modifier.fillMaxWidth())
 
-            // --- DROPDOWNS for Category, Genre, and Status ---
             var categoryExpanded by remember { mutableStateOf(false) }
             Box {
                 Button(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedCategory ?: "Select Category") }
                 DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
                     categories.forEach { category ->
-                        DropdownMenuItem(text = { Text(category) }, onClick = { selectedCategory = category; selectedGenre = null; categoryExpanded = false })
+                        DropdownMenuItem(text = { Text(category, color = MaterialTheme.colorScheme.onSurface) }, onClick = { onCategorySelected(category); categoryExpanded = false })
                     }
                 }
             }
@@ -211,7 +361,7 @@ fun AddBookScreen(context: Context) {
                 Button(onClick = { if (selectedCategory != null) genreExpanded = true }, modifier = Modifier.fillMaxWidth(), enabled = selectedCategory != null) { Text(selectedGenre ?: "Select Genre") }
                 DropdownMenu(expanded = genreExpanded, onDismissRequest = { genreExpanded = false }) {
                     genres.forEach { genre ->
-                        DropdownMenuItem(text = { Text(genre) }, onClick = { selectedGenre = genre; genreExpanded = false })
+                        DropdownMenuItem(text = { Text(genre, color = MaterialTheme.colorScheme.onSurface) }, onClick = { onGenreSelected(genre); genreExpanded = false })
                     }
                 }
             }
@@ -221,34 +371,19 @@ fun AddBookScreen(context: Context) {
                 Button(onClick = { statusExpanded = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedStatus ?: "Set Initial Status (Optional)") }
                 DropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
                     statuses.forEach { status ->
-                        DropdownMenuItem(text = { Text(status) }, onClick = { selectedStatus = status; statusExpanded = false })
+                        DropdownMenuItem(text = { Text(status, color = MaterialTheme.colorScheme.onSurface) }, onClick = { onStatusSelected(status); statusExpanded = false })
                     }
                 }
             }
 
-            // --- IMAGE SELECTION BUTTONS (Camera and Gallery) ---
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Insert Cover Image")
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Button(onClick = {
-                        // Check for camera permission before launching the camera.
-                        when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
-                            PackageManager.PERMISSION_GRANTED -> {
-                                val newImageUri = createImageFile(context)
-                                tempImageUri = newImageUri
-                                cameraLauncher.launch(newImageUri)
-                            }
-                            else -> {
-                                // If not granted, request permission.
-                                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                            }
-                        }
-                    }) { Text("Camera") }
-                    Button(onClick = { galleryLauncher.launch("image/*") }) { Text("Gallery") }
+                    Button(onClick = onCameraClick) { Text("Camera") }
+                    Button(onClick = onGalleryClick) { Text("Gallery") }
                 }
             }
 
-            // --- IMAGE PREVIEW ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -259,7 +394,7 @@ fun AddBookScreen(context: Context) {
             ) {
                 if (coverImageBitmap != null) {
                     Image(
-                        bitmap = coverImageBitmap!!.asImageBitmap(),
+                        bitmap = coverImageBitmap.asImageBitmap(),
                         contentDescription = "Cover Image Preview",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit
@@ -269,110 +404,57 @@ fun AddBookScreen(context: Context) {
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f)) // Pushes the button to the bottom
+            Spacer(modifier = Modifier.weight(1f))
 
-            // --- SUBMIT BUTTON ---
-            Button(
-                onClick = {
-                    // --- INPUT VALIDATION ---
-                    val name = bookName.text.trim()
-                    val author = authorName.text.trim()
-                    if (name.isEmpty() || author.isEmpty() || selectedCategory == null || selectedGenre == null) {
-                        Toast.makeText(context, "Please fill all required fields.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    // --- USER AUTHENTICATION CHECK ---
-                    val userDetails = userSessionManager.getUserDetails()
-                    val userId = userDetails[UserSessionManager.PREF_USER_ID]?.toIntOrNull() ?: 0
-                    val firebaseUser = firebaseAuth?.currentUser
-
-                    if (userId == 0 || firebaseUser == null) {
-                        Toast.makeText(context, "Error: User not logged in.", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
-
-                    // --- DATABASE OPERATIONS ---
-                    // This function saves the book data to both Firebase and the local SQLite database.
-                    fun saveBookData(coverUrl: String?) {
-                        val bookForFirebase = Book(
-                            name = name,
-                            author = author,
-                            category = selectedCategory!!,
-                            genre = selectedGenre!!,
-                            coverUri = coverUrl,
-                            status = selectedStatus
-                        )
-
-                        firebaseManager?.saveBook(
-                            userId = firebaseUser.uid,
-                            book = bookForFirebase
-                        ) { firebaseKey ->
-                            isLoading = false
-                            if (firebaseKey != null) {
-                                // If Firebase save is successful, save to the local SQLite database.
-                                val success = dbHelper.insertUserBook(
-                                    userId,
-                                    name,
-                                    author,
-                                    selectedCategory!!,
-                                    selectedGenre!!,
-                                    coverUrl,
-                                    selectedStatus,
-                                    firebaseKey // Pass the key from Firebase here.
-                                )
-                                if (success) {
-                                    Toast.makeText(context, "Book added successfully!", Toast.LENGTH_SHORT).show()
-                                    activity?.finish() // Close the activity on success.
-                                } else {
-                                    Toast.makeText(context, "Error saving book to local database.", Toast.LENGTH_SHORT).show()
-                                }
-                            } else {
-                                Toast.makeText(context, "Error saving book to Firebase.", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    }
-
-                    // If a cover image was selected, upload it to Firebase Storage first.
-                    if (coverImageUri != null) {
-                        isLoading = true
-                        Toast.makeText(context, "Uploading image...", Toast.LENGTH_SHORT).show()
-                        firebaseManager?.uploadImage(coverImageUri!!) { downloadUrl ->
-                            if (downloadUrl != null) {
-                                // Once the image is uploaded, save the book data with the public download URL.
-                                saveBookData(downloadUrl)
-                            } else {
-                                isLoading = false
-                                Toast.makeText(context, "Error uploading image. Please try again.", Toast.LENGTH_LONG).show()
-                            }
-                        }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onReturnClick,
+                ) {
+                    Text("Return")
+                }
+                Button(
+                    onClick = onSubmitClick,
+                    enabled = !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                     } else {
-                        // If no image was selected, save the book data with a null cover URL.
-                        isLoading = true
-                        saveBookData(null)
+                        Text("Add Book")
                     }
-                },
-                enabled = !isLoading, // Disable the button while an operation is in progress.
-                modifier = Modifier.fillMaxWidth()
-            ) { 
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Text("Add Book") 
                 }
             }
         }
     }
 }
 
-/**
- * A preview function to render the `AddBookScreen` in Android Studio's design view.
- * It's wrapped in the app's theme to ensure consistent styling.
- */
 @Preview(showBackground = true)
 @Composable
-fun AddBookScreenPreview() {
+fun AddBookFormPreview() {
     BankLoginSystemTheme {
-        AddBookScreen(LocalContext.current)
+        AddBookForm(
+            bookName = TextFieldValue("The Great Gatsby"),
+            onBookNameChange = {},
+            authorName = TextFieldValue("F. Scott Fitzgerald"),
+            onAuthorNameChange = {},
+            categories = listOf("FICTION", "NON-FICTION"),
+            selectedCategory = "FICTION",
+            onCategorySelected = {},
+            genreMap = mapOf("FICTION" to listOf("Historical Fiction", "Drama")),
+            selectedGenre = "Historical Fiction",
+            onGenreSelected = {},
+            statuses = listOf("Currently Reading", "Completed"),
+            selectedStatus = "Plan to Read",
+            onStatusSelected = {},
+            onCameraClick = {},
+            onGalleryClick = {},
+            coverImageBitmap = null,
+            isLoading = false,
+            onSubmitClick = {},
+            onReturnClick = {}
+        )
     }
 }

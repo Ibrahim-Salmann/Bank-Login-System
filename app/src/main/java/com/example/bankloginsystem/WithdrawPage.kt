@@ -16,12 +16,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,26 +72,6 @@ fun WithdrawPageScreen(
 
     val withdrawnAmount = remember { mutableStateOf("") }
     val withdrawnAmountError = remember { mutableStateOf("") }
-    val showSuccessDialog = remember { mutableStateOf(false) }
-
-    if (showSuccessDialog.value) {
-        AlertDialog(
-            onDismissRequest = { showSuccessDialog.value = false },
-            title = { Text("Success") },
-            text = { Text("Your withdrawal was successful.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showSuccessDialog.value = false
-                    val intent = Intent(context, WelcomePage::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    context.startActivity(intent)
-                }) {
-                    Text("Go to Welcome Page")
-                }
-            }
-        )
-    }
 
     Box(modifier = modifier.fillMaxSize()) {
         ScanLines()
@@ -180,9 +158,16 @@ fun WithdrawPageScreen(
 
                             if (rowsUpdated > 0) {
                                 // 2. If local update is successful, update Firebase Realtime Database.
-                                firebaseManager?.updateBalance(firebaseUserId, newBalance) { _ ->
+                                firebaseManager?.updateBalance(firebaseUserId, newBalance) { success ->
                                     (context as? Activity)?.runOnUiThread {
-                                        showSuccessDialog.value = true
+                                        if (success) {
+                                            Toast.makeText(context, "Withdrawal successful.", Toast.LENGTH_SHORT).show()
+                                            val intent = Intent(context, WelcomePage::class.java)
+                                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                            context.startActivity(intent)
+                                        } else {
+                                            Toast.makeText(context, "Firebase balance update failed.", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 }
                             } else {
@@ -203,6 +188,7 @@ fun WithdrawPageScreen(
             ButtonClicked("Return", {
                 val intent = Intent(context, WelcomePage::class.java)
                 context.startActivity(intent)
+                (context as? Activity)?.finish()
             })
         }
     }
